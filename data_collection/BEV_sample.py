@@ -36,36 +36,87 @@ perfect spatial data (Semantic Masks) centered on a Target Actor.
 
 """
 
+import numpy as np
+import carla
 
-class BEV_sample:
+class BEVSample:
     '''
-    Sample one single pedestrian's BEV
-    IN: world, ped_id
-    OUT: image feature tensor
+    Handles the "How to see" for one pedestrian.
     '''
-    def __init__(self, world, ped_id):
-        self.world = world
-        self.ped_id = ped_id
-        self.image = None
-    
+    def __init__(self, actor, bev_wrapper):
+        self.wrapper = bev_wrapper
+        self.actor = actor              # The actual carla.Walker object
+        self.feature_tensor = None
+
     def get_BEV(self):
-        pass
-  
-    def CNN_Encoder(self):
+        # Focus the BEV engine on one pedestrian
+        self.wrapper.world_module.hero_actor = self.actor
+        
+        # Extract the dictionary of layers
+        layers = self.wrapper.get_bev_data()
+        
+        # 3. Stack them into a (320, 320, N) tensor
+        # We use np.transpose to move channels to the front (C, H, W) 
+        # if using PyTorch, or keep at end for TensorFlow.
+        self.feature_tensor = np.stack([
+            layers['road'], 
+            layers['vehicle'], 
+            layers['pedestrian']
+        ], axis=-1)
+        
+        return self.feature_tensor
+
+    def CNN_Encoder(self, model):
         '''
-        Get the input image tensor and encode it into feature vector 
+        Passes the tensor through your CNN (e.g., ResNet or MobileNet)
+        to get a 1D Feature Vector (e.g., 512 dimensions).
         '''
-        pass
+        if self.feature_tensor is None:
+            self.get_BEV()
+        return model(self.feature_tensor)
     
-class BEV_wrapper:
+class BEVWrapper:
+    '''
+    Tool box for generating BEV feature tensors from the CARLA world.
+    '''
+    config = dict(
+        size=[320, 320],
+        pixels_per_meter=5,
+        pixels_ahead_vehicle=100,
+    )
+    def __init__(self, cfg, world):
+        self.image = None
+        self.world = world
+
+
+    def get_bev_data(self):
+        '''
+        1. Create a blank canvas centered on the hero actor.
+        2. Query the world for all relevant actors and map data.
+        '''
     
-    '''
-    Wrap up the state-acrion pairs for the pedestrians.
-    State: {BEV tensor (320, 320, N), relative direction(x, y), current speed(vx, vy), Distance to vehicles}
-    Actions: {vx, vy, time_stamp(t, frame)}
-    '''
-    def __init__(self):
-        pass
+    
     
 
-class 
+class PedestrianStateAction:
+    '''
+    The "Memory" of your model: stores what the pedestrian saw vs. what they did.
+    '''
+    def __init__(self, actor_id):
+        self.actor_id = actor_id
+        self.state = {
+            "bev": None,         # The (320, 320, N) tensor
+            "velocity": None,    # (vx, vy): vx and vy can get heading and speed
+            "dist_to_car": None, # (N, 1)
+            "timestamp": None,   # (t, time_stamp)
+        }
+        self.action = {
+            "target_vel": None,  # The vx, vy the model chose
+            "timestamp": None,   # (t, time_stamp)
+        }
+
+
+
+if __name__ == "__main__":
+    '''Test the BEV_sample class functionality'''
+    

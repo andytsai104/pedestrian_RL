@@ -17,8 +17,7 @@ class CrossroadPedestrians:
         spawn_single_walker(): Spawns a single walker and its AI controller, setting its destination.
         pedestrians_spawn(): Orchestrates the spawning of the total number of pedestrians.
     '''
-    def __init__(self, client, world, location, dist=25, ped_num=30, in_intersection=True):
-        self.client = client
+    def __init__(self, world, location, dist=25, ped_num=30, in_intersection=True):
         self.world = world
         self.location = location
         self.x, self.y, self.z = location.x, location.y, location.z

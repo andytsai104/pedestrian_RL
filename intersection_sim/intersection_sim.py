@@ -32,7 +32,7 @@ if __name__ == '__main__':
     aggressive_vehicles.aggressive_vehicles_spawn()
 
     # Spawn crossroad pedestrians
-    cross_street_pedestrians = CrossroadPedestrians(client, world, location=intersection_position)
+    cross_street_pedestrians = CrossroadPedestrians(world, location=intersection_position)
     cross_street_pedestrians.pedestrians_spawn()
 
 
