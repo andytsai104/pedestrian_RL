@@ -24,8 +24,8 @@ class CrossroadPedestrians:
         self.dist = dist
         self.ped_num = ped_num
         self.in_intersection = in_intersection
-        # self.speed = 1.0 + random.random()        # random speed
-        self.speed = 2
+        self.speed = 1.0 + random.random()        # random speed
+        # self.speed = 2
     
     
     def get_ped_spawn_points(self, ped_num, in_intersection=True):

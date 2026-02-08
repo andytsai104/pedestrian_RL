@@ -90,7 +90,7 @@ class Spector:
 
         return spawn_points
 
-    def show_ped_spawn_points(self, ped_num, in_intersection=False):
+    def show_ped_spawn_points(self, ped_num, in_intersection=True):
         spawn_points = self.get_ped_spawn_points(ped_num, in_intersection)
         # draw spawn points    
         for spawn_point in spawn_points:
@@ -102,7 +102,7 @@ class Spector:
         # Draw map info
         self.show_waypoints()
         self.show_vehicles_spawn_points()
-        self.show_ped_spawn_points(ped_num=100, in_intersection=True)
+        self.show_ped_spawn_points(ped_num=1000)
 
 
 
@@ -112,6 +112,14 @@ if __name__ == "__main__":
     world = client.get_world()
     static = True
     location = carla.Location(x=-43.5, y=21, z=50)
+    location2 = carla.Location(x=-43.5+25, y=21+25, z=50)
+    wp = world.get_map().get_waypoint(location, lane_type=carla.LaneType.Any)
+    if wp.lane_type == carla.LaneType.Driving:
+        world.debug.draw_point(wp.transform.location + carla.Location(z=1.0), size=0.5, color=carla.Color(0, 0, 0), life_time=-1)
+        print("Waypoint is on Driving Lane")   
+    elif wp.lane_type == carla.LaneType.Sidewalk:
+        print("Waypoint is on Sidewalk")
+        world.debug.draw_point(wp.transform.location + carla.Location(z=1.0), size=0.5, color=carla.Color(120, 120, 120), life_time=-1)
 
     spector = Spector(world, location)
     spector.show_intersection_info()
@@ -119,4 +127,7 @@ if __name__ == "__main__":
     while True:
         world.tick()
         time.sleep(0.1)
+
+
+    '''!!! Side Quest: Draw all lane types in the map !!!'''
 

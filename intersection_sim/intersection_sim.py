@@ -1,8 +1,8 @@
 import time
 import carla
-from utils import Spector, cleanup_simulation
-from aggressive_vehicles import AggressiveVehicles
-from crossroad_pedestrians import CrossroadPedestrians
+from .utils import Spector, cleanup_simulation
+from .aggressive_vehicles import AggressiveVehicles
+from .crossroad_pedestrians import CrossroadPedestrians
 import math
 
 
