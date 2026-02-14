@@ -5,37 +5,8 @@ from .aggressive_vehicles import AggressiveVehicles
 from .crossroad_pedestrians import CrossroadPedestrians
 import math
 
-
-
-if __name__ == '__main__':
-    # --- Initialize ---
-    # CARLA Server
-    client = carla.Client('localhost', 2000)
-    client.set_timeout(10.0)
-    world = client.load_world('Town10HD_Opt')
-    # world = client.get_world()
-    world_map = world.get_map()
-    settings = world.get_settings()
-    settings.synchronous_mode = True
-    settings.fixed_delta_seconds = 0.05
-    world.apply_settings(settings)
-
-    intersection_position = carla.Location(x=-43.5, y=21, z=0)
-
-    # Set spector to visulize intersection area
-    spector = Spector(world, location=intersection_position + carla.Location(z=50), dist=25)
-    # spector.show_intersection_info()
-    spector.set_spector()
-
-    # Spawn aggressive vehicles
-    aggressive_vehicles = AggressiveVehicles(client, world, world_map, location=intersection_position)
-    aggressive_vehicles.aggressive_vehicles_spawn()
-
-    # Spawn crossroad pedestrians
-    cross_street_pedestrians = CrossroadPedestrians(world, location=intersection_position)
-    cross_street_pedestrians.pedestrians_spawn()
-
-
+def refresh_simulation_if_needed(world, intersection_position: carla.Location, 
+                                 aggressive_vehicles: AggressiveVehicles, cross_street_pedestrians: CrossroadPedestrians):
     # --- Refresh the simulation if vehicles are stuck or timeout occurs ---
     start_time = time.time()
     stuck_tracker = {}
@@ -112,3 +83,39 @@ if __name__ == '__main__':
             stuck_tracker = {}
 
         time.sleep(0.05)
+
+
+def main():
+    # --- Initialize ---
+    # CARLA Server
+    client = carla.Client('localhost', 2000)
+    client.set_timeout(10.0)
+    world = client.load_world('Town10HD_Opt')
+    # world = client.get_world()
+    world_map = world.get_map()
+    settings = world.get_settings()
+    settings.synchronous_mode = True
+    settings.fixed_delta_seconds = 0.05
+    world.apply_settings(settings)
+
+    intersection_position = carla.Location(x=-43.5, y=21, z=0)
+
+    # Set spector to visulize intersection area
+    spector = Spector(world, location=intersection_position + carla.Location(z=50), dist=25)
+    # spector.show_intersection_info()
+    spector.set_spector()
+
+    # Spawn aggressive vehicles
+    aggressive_vehicles = AggressiveVehicles(client, world, world_map, location=intersection_position)
+    aggressive_vehicles.aggressive_vehicles_spawn()
+
+    # Spawn crossroad pedestrians
+    cross_street_pedestrians = CrossroadPedestrians(world, location=intersection_position)
+    cross_street_pedestrians.pedestrians_spawn()
+
+    refresh_simulation_if_needed(world, intersection_position, aggressive_vehicles, cross_street_pedestrians)
+
+if __name__ == '__main__':
+    main()
+
+    

@@ -22,6 +22,33 @@ def cleanup_simulation(world):
     # Tick the world to let the server process the destructions
     world.tick()
 
+def draw_lane__types(world):
+    '''
+    NONE
+    Driving
+    Stop
+    Shoulder
+    Biking
+    Sidewalk
+    Border
+    Restricted
+    Parking
+    Bidirectional
+    Median
+    Special1
+    Special2
+    Special3
+    RoadWorks
+    Tram
+    Rail
+    Entry
+    Exit
+    OffRamp
+    OnRamp
+    '''
+    lane_type = [""]
+    
+
 class Spector:
     '''
     Manages the spectator camera and provides debugging visualization tools for displaying key map features in CARLA.
@@ -96,6 +123,8 @@ class Spector:
         for spawn_point in spawn_points:
             self.world.debug.draw_point(spawn_point.location, size=0.1, color=carla.Color(0, 0, 255), life_time=-1)
 
+    def show_lane_types():
+        pass
 
     def show_intersection_info(self):
         self.set_spector()
@@ -112,15 +141,6 @@ if __name__ == "__main__":
     world = client.get_world()
     static = True
     location = carla.Location(x=-43.5, y=21, z=50)
-    location2 = carla.Location(x=-43.5+25, y=21+25, z=50)
-    wp = world.get_map().get_waypoint(location, lane_type=carla.LaneType.Any)
-    if wp.lane_type == carla.LaneType.Driving:
-        world.debug.draw_point(wp.transform.location + carla.Location(z=1.0), size=0.5, color=carla.Color(0, 0, 0), life_time=-1)
-        print("Waypoint is on Driving Lane")   
-    elif wp.lane_type == carla.LaneType.Sidewalk:
-        print("Waypoint is on Sidewalk")
-        world.debug.draw_point(wp.transform.location + carla.Location(z=1.0), size=0.5, color=carla.Color(120, 120, 120), life_time=-1)
-
     spector = Spector(world, location)
     spector.show_intersection_info()
 
