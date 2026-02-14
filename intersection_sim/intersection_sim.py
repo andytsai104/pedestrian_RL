@@ -5,6 +5,10 @@ from .aggressive_vehicles import AggressiveVehicles
 from .crossroad_pedestrians import CrossroadPedestrians
 import math
 
+'''
+TODO: Combine refreshing mechanism into classes (eg. merge ped. refreshing into CroossroadPedestrians, etc.)
+'''
+
 def refresh_simulation_if_needed(world, intersection_position: carla.Location, 
                                  aggressive_vehicles: AggressiveVehicles, cross_street_pedestrians: CrossroadPedestrians):
     # --- Refresh the simulation if vehicles are stuck or timeout occurs ---

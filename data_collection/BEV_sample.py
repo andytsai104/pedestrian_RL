@@ -4,24 +4,24 @@ WORKFLOW: GROUND-TRUTH BIRD'S-EYE VIEW (BEV) FEATURE EXTRACTION
 This process bypasses raw RGB "visual" cameras to provide the model with 
 perfect spatial data (Semantic Masks) centered on a Target Actor.
 
-1. ACTOR CENTERED COORDINATE SYSTEM:
+1. ✅ACTOR CENTERED COORDINATE SYSTEM:
    - Identify the 'Hero' (Pedestrian or Vehicle).
    - Define a Top-Down 'Canvas' (e.g., 320x320 pixels) where the Hero 
      is fixed at the center.
 
-2. QUERY SIMULATOR STATE:
+2. ✅QUERY SIMULATOR STATE:
    - Use the CARLA Python API to retrieve the global (x, y) coordinates 
      of all relevant actors (Vehicles, Walkers, Traffic Lights).
    - Fetch the static Map geometry (Roads, Lanes, Sidewalks).
 
-3. COORDINATE TRANSFORMATION & PROJECTION:
+3. COORDINATE TRANSFORMATION & PROJECTION: -> Align everything to the Hero's perspective
    - Convert World Coordinates (Meters) -> Relative Coordinates (Meters from Hero).
    - Apply Rotation: Rotate the world around the Hero so that the Hero's 
      forward direction is always 'Up' (0°).
    - Scale to Pixels: Convert Relative Meters to Pixel indices based on 
      'pixels_per_meter' (Scale).
 
-4. SEMANTIC LAYER RENDERING (The "Dictionary"):
+4. ✅SEMANTIC LAYER RENDERING (The "Dictionary"):
    - Instead of one RGB image, the process renders multiple Binary Masks:
      * 'road': Binary mask of drivable surfaces.
      * 'vehicle': Bounding boxes of all nearby cars.
@@ -114,7 +114,7 @@ class BEVWrapper:
     config = dict(
         size=[320, 320],
         BEV_range = 16,                                             # get BEV in a 16mx16m area around the pedestrian
-        pixels_per_meter= 40,                                       # resollution for BEV extractor: pixels/m
+        pixels_per_meter= 20,                                       # resollution for BEV extractor: pixels/m
     )
     def __init__(self, cfg, world):
         self.image = None
@@ -161,7 +161,7 @@ class BEVWrapper:
 
         # Make hero pedestrian always facing north (upwards)
         rad = np.radians(-hero_yaw)
-        rx = dx * np.cos(rad) - dy * np.sin(rad)
+        rx = - dx * np.cos(rad) + dy * np.sin(rad)
         ry = dx * np.sin(rad) + dy * np.cos(rad)
 
         px = int(self.width // 2 + rx * self.pixel_per_meter)
@@ -188,7 +188,7 @@ class BEVWrapper:
 
         # Define the range and step sizes for querying the map
         search_range = self.bev_range / 2
-        step_size = 0.25        # sample every 0.25m
+        step_size = 0.1        # sample every 0.25m -> adjust for higher resolution (but might require more computation)
 
         # Fill up the narrow between step sieze and pixel siezs to avoid holes on canvas
         brush_size = int(step_size * self.pixel_per_meter) + 1
@@ -201,7 +201,7 @@ class BEVWrapper:
                 # Get the world location of the target point relative to the hero pedestrian
                 target_vector = carla.Vector3D(x, y, 0)
                 world_location = hero_transform.transform(target_vector)
-                wp = self.world.get_map().get_waypoint(world_location, lane_type=carla.LaneType.Any)
+                wp = self.world.get_map().get_waypoint(world_location, project_to_road=False, lane_type=carla.LaneType.Any)
 
                 if wp:
                     # Convert world location to pixel on the canvas
@@ -216,7 +216,7 @@ class BEVWrapper:
                                             (px + brush_size//2, py + brush_size//2),
                                             color=255,
                                             thickness=-1)
-                        elif lane_type == carla.LaneType.Sidewalk:
+                        elif (lane_type == carla.LaneType.Sidewalk) or (lane_type == carla.LaneType.Shoulder):
                             cv2.rectangle(sidewalks_canvas,
                                             (px - brush_size//2, py - brush_size//2),
                                             (px + brush_size//2, py + brush_size//2),
@@ -229,7 +229,8 @@ class BEVWrapper:
         # Visualize target pedestrian in CARLA
         if self.hero_actor:
             location = self.hero_actor.get_location()
-            self.world.debug.draw_point(location, size=0.1, color=carla.Color(0, 0, 255), life_time=2.0)
+            location.z = 20
+            self.world.debug.draw_point(location, size=0.3, color=carla.Color(0, 0, 255), life_time=2.0)
     
 
 
