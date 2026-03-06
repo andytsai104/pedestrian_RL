@@ -21,7 +21,7 @@ class AggressiveVehicles:
                                      Traffic Manager settings for aggressive behavior.
     '''
     def __init__(self, client, world, world_map, location, veh_num=30, 
-                 dist_to_intersection=60, speed_diff=-100, dist_lead=2.0, wp_step=2):
+                 dist_to_intersection=60, speed_diff=-50, dist_lead=2.0, wp_step=2):
         
         self.client = client
         self.world = world
