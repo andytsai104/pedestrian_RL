@@ -1,3 +1,8 @@
+'''TODO
+Write the description for the functions.
+'''
+
+
 """
 WORKFLOW: GROUND-TRUTH BIRD'S-EYE VIEW (BEV) FEATURE EXTRACTION
 --------------------------------------------------------------
@@ -14,7 +19,7 @@ perfect spatial data (Semantic Masks) centered on a Target Actor.
      of all relevant actors (Vehicles, Walkers, Traffic Lights).
    - Fetch the static Map geometry (Roads, Lanes, Sidewalks).
 
-3. COORDINATE TRANSFORMATION & PROJECTION: -> Align everything to the Hero's perspective
+3. ✅COORDINATE TRANSFORMATION & PROJECTION: -> Align everything to the Hero's perspective
    - Convert World Coordinates (Meters) -> Relative Coordinates (Meters from Hero).
    - Apply Rotation: Rotate the world around the Hero so that the Hero's 
      forward direction is always 'Up' (0°).
@@ -59,8 +64,7 @@ class BEVSample:
         layers = self.wrapper.get_bev_data()
         
         # 3. Stack them into a (320, 320, N) tensor
-        # We use np.transpose to move channels to the front (C, H, W) 
-        # if using PyTorch, or keep at end for TensorFlow.
+        # Need to use np.transpose to move channels to the front (C, H, W) 
         self.feature_tensor = np.stack([
             layers['lane'],
             layers['sidewalk'], 
@@ -74,36 +78,28 @@ class BEVSample:
         vx, vy = self.actor.get_velocity().x, self.actor.get_velocity().y
         return np.array([vx, vy])
 
-    def CNN_Encoder(self, model):
-        '''
-        Passes the tensor through your CNN (e.g., ResNet or MobileNet)
-        to get a 1D Feature Vector (e.g., 512 dimensions).
-        '''
-        if self.feature_tensor is None:
-            self.get_BEV()
-        return model(self.feature_tensor)
     
-    def visulize_bev(self):
+    def visualize_bev(self):
         '''
         Get the output from self.get_bev_data() and visualize it as a single RGB image for debugging.
         lane: dark gray -> (40, 40, 40)
         sidewalk: gray -> (120, 120, 120)
         vehicle: red  -> (0, 0, 255)
         pedestrian: blue -> (255, 0, 0)
+        hero pedestrian: green -> (0, 255, 0)
 
-        HINT: OpenCV uses BRG format
+        HINT: OpenCV uses BRG format; Numpy/OpenCV images use (H, W)
         '''
         width = self.wrapper.width
         height = self.wrapper.height
         layers = self.wrapper.get_bev_data()
         self.wrapper.show_target_pedestrian()
-        image = np.zeros((width, height, 3), dtype=np.uint8)
+        image = np.zeros((height, width, 3), dtype=np.uint8)
         image[layers['lane'] > 0] = (40, 40, 40)
         image[layers['sidewalk'] > 0] = (120, 120, 120)
         image[layers['vehicle'] > 0] = (0, 0, 255)
-        image[layers['pedestrian'] > 0] = (255, 0, 0)
-        center = (width // 2, height // 2)
-        cv2.circle(image, center, 2, (0, 255, 255), -1)
+        image[layers['pedestrian'] == 255] = (255, 0, 0)
+        image[layers['pedestrian'] == 100] = (0, 255, 0)
         
         return image
     
@@ -112,9 +108,8 @@ class BEVWrapper:
     Tool box for generating BEV feature tensors from the CARLA world.
     '''
     config = dict(
-        size=[320, 320],
-        BEV_range = 16,                                             # get BEV in a 16mx16m area around the pedestrian
-        pixels_per_meter= 20,                                       # resollution for BEV extractor: pixels/m
+        size = 320,
+        BEV_range = 20,                                             # get BEV in a NxN m^2 area around the pedestrian
     )
     def __init__(self, cfg, world):
         self.image = None
@@ -125,10 +120,10 @@ class BEVWrapper:
             self.config = cfg
         else:
             self.config = BEVWrapper.config
-        self.width = self.config['size'][0]
-        self.height = self.config['size'][1]
+        self.width = self.config['size']
+        self.height = self.config['size']
         self.bev_range = self.config['BEV_range']                   # meters
-        self.pixel_per_meter = self.config['pixels_per_meter']      # pixels/m
+        self.pixel_per_meter = self.width // self.bev_range         # pixels/m
 
 
     def get_bev_data(self):
@@ -147,44 +142,78 @@ class BEVWrapper:
             'pedestrian': self.draw_actor_layers('walker'),
             }
     
+
     def world_to_pixel(self, target_location):
-        '''
-        Convert world coordinates to pixels on canvas
-        '''
         hero_transform = self.hero_actor.get_transform()
         hero_location = hero_transform.location
-        hero_yaw = hero_transform.rotation.yaw
+        yaw = np.radians(hero_transform.rotation.yaw)
 
-        # Distance between hero_ped and target_location
         dx = target_location.x - hero_location.x
         dy = target_location.y - hero_location.y
 
-        # Make hero pedestrian always facing north (upwards)
-        rad = np.radians(-hero_yaw)
-        rx = - dx * np.cos(rad) + dy * np.sin(rad)
-        ry = dx * np.sin(rad) + dy * np.cos(rad)
+        # Hero local axes in world frame
+        forward_x = np.cos(yaw)
+        forward_y = np.sin(yaw)
+        right_x = -np.sin(yaw)
+        right_y =  np.cos(yaw)
 
-        px = int(self.width // 2 + rx * self.pixel_per_meter)
-        py = int(self.height // 2 - ry * self.pixel_per_meter)
+        # Project world delta onto hero frame
+        local_forward = dx * forward_x + dy * forward_y
+        local_right   = dx * right_x   + dy * right_y
+
+        # Map to image: right -> +x, forward -> up (-y)
+        px = int(self.width  // 2 + local_right   * self.pixel_per_meter)
+        py = int(self.height // 2 - local_forward * self.pixel_per_meter)
 
         return px, py
     
     def draw_actor_layers(self, actor_type):
-        canvas = np.zeros((self.width, self.height), dtype=np.uint8)     # empty canvas
+        canvas = np.zeros((self.height, self.width), dtype=np.uint8)
         actors = self.actor_list.filter(actor_type + ".*")
         
         for actor in actors:
-            if actor.id == self.hero_actor.id: 
-                continue
-            px, py = self.world_to_pixel(actor.get_location())
-            if 0 <= px < self.width and 0 <= py < self.height:
-                cv2.circle(canvas, (px, py), radius=3, color=255, thickness=-1)
+            extent = actor.bounding_box.extent
+            
+            # Pedestrians (Walkers) as Circles
+            if actor_type == 'walker':
+                # hero pedestrin (larger mark and lighter feature)
+                if actor.id == self.hero_actor.id:
+                    color = 100
+                    radius = 8
+                else:    
+                    color = 255
+                    radius = 5   
+                px, py = self.world_to_pixel(actor.get_location())
+                if 0 <= px < self.width and 0 <= py < self.height:
+                    cv2.circle(canvas, (px, py), radius=radius, color=color, thickness=-1)
+            
+            # Vehicles as Rotated Rectangles
+            elif actor_type == 'vehicle':
+                # Get the 4 corners of the vehicle in world coordinates
+                transform = actor.get_transform()
+                # Calculate the 4 corners relative to the vehicle center
+                corners = [
+                    carla.Location(x=-extent.x, y=-extent.y),
+                    carla.Location(x=extent.x, y=-extent.y),
+                    carla.Location(x=extent.x, y=extent.y),
+                    carla.Location(x=-extent.x, y=extent.y)
+                ]
+                
+                # Transform corners to world coordinates, then to pixels
+                pixel_corners = []
+                for corner in corners:
+                    world_corner = transform.transform(corner)
+                    px, py = self.world_to_pixel(world_corner)
+                    pixel_corners.append([px, py])
+                
+                # Draw the rotated rectangle
+                cv2.fillPoly(canvas, [np.array(pixel_corners, dtype=np.int32)], color=255)
 
         return canvas
     
     def draw_road_layers(self):
-        lane_canvas = np.zeros((self.width, self.height), dtype=np.uint8)           # empty canvas
-        sidewalks_canvas = np.zeros((self.width, self.height), dtype=np.uint8)      # empty canvas
+        lane_canvas = np.zeros((self.height, self.width), dtype=np.uint8)           # empty canvas
+        sidewalks_canvas = np.zeros((self.height, self.width), dtype=np.uint8)      # empty canvas
 
         # Define the range and step sizes for querying the map
         search_range = self.bev_range / 2
@@ -210,12 +239,15 @@ class BEVWrapper:
 
                     # Determine which canvas to draw
                     if 0 <= px < self.width and 0 <= py < self.height:
+                        # Draw Drivable lanes
                         if lane_type == carla.LaneType.Driving:
                             cv2.rectangle(lane_canvas,
                                             (px - brush_size//2, py - brush_size//2),
                                             (px + brush_size//2, py + brush_size//2),
                                             color=255,
                                             thickness=-1)
+
+                        # Draw Sidewalks and Sholders
                         elif (lane_type == carla.LaneType.Sidewalk) or (lane_type == carla.LaneType.Shoulder):
                             cv2.rectangle(sidewalks_canvas,
                                             (px - brush_size//2, py - brush_size//2),
@@ -229,8 +261,8 @@ class BEVWrapper:
         # Visualize target pedestrian in CARLA
         if self.hero_actor:
             location = self.hero_actor.get_location()
-            location.z = 20
-            self.world.debug.draw_point(location, size=0.3, color=carla.Color(0, 0, 255), life_time=2.0)
+            location.z = 1
+            self.world.debug.draw_point(location, size=0.2, color=carla.Color(0, 0, 255), life_time=2.0)
     
 
 
@@ -250,10 +282,13 @@ class PedestrianStateAction:
             "timestamp": None,   # (t, time_stamp)
         }
         self.action = {
-            "target_vel": None,  # The vx, vy the model chose
+            "target_vel": None,  # The vx, vy the model chose (vx, vy)
             "timestamp": None,   # (t, time_stamp)
         }
 
+
+
+# Test the functionality of BEV sampling
 def find_pedestrian(world, test_ped=None):
     test_ped = None
     print("Waiting for pedestrians spawning...")
@@ -261,7 +296,7 @@ def find_pedestrian(world, test_ped=None):
     while test_ped is None:
         # world.tick() to ensure pedestrians are spawned
         world.tick() 
-        ped_list = world.get_actors().filter('walker.*')
+        ped_list = world.get_actors().filter('walker.*')   
         
         if len(ped_list) > 0:
             test_ped = ped_list[0]
@@ -270,6 +305,12 @@ def find_pedestrian(world, test_ped=None):
             time.sleep(0.5)
 
     return test_ped
+
+def data_sampling():
+    '''
+    connect to simulation and sample the data for every existing pedestrian.
+    '''
+    pass
 
 if __name__ == "__main__":
     '''Test the BEV_sample class functionality'''
@@ -289,4 +330,5 @@ if __name__ == "__main__":
             cv2.imshow("BEV Debug Tool", image)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-        
+    
+
