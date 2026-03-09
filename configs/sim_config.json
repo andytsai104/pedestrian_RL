@@ -1,0 +1,51 @@
+{
+  "simulation": {
+    "town": "Town10HD",
+    "fixed_delta_seconds": 0.05,
+    "max_episode_steps": 400,
+    "warmup_ticks": 10,
+
+    "intersection": {
+      "x": -43.5,
+      "y": 21.0,
+      "z": 0.0, 
+      "dist": 25.0
+    },
+
+    "vehicle": {
+      "veh_num": 30,
+      "dist_to_intersection": 60,
+      "speed_diff": -50,
+      "dist_lead": 2.0,
+      "wp_step": 2    
+    },
+
+    "pedestrian":{
+      "ped_num": 40
+    },
+
+    "stuck_detection":{
+      "time_out": 60,
+      "pedestrian":{
+        "min_pedestrians": 10
+      },
+      "vehicle":{
+        "velocity_threshold": 0.1,
+        "stuck_time_limit": 5.0,
+        "stuck_count_limit": 5
+      }
+    }
+  
+  },
+
+  "bev": {
+    "size": [320, 320],
+    "range_m": 16,
+    "pixels_per_meter": 20
+  },
+
+  "dataset": {
+    "save_path": "datasets/carla_pedestrians",
+    "format": "hdf5"
+  }
+}

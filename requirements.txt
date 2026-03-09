@@ -1,0 +1,5 @@
+numpy==1.22.3
+opencv-python==4.6.0.66
+carla==0.9.16
+pygame==2.6.1
+h5py==3.12.1
