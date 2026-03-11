@@ -1,5 +1,6 @@
 '''TODO
 Write the description for the functions.
+Use config files (.json) to sample BEV.
 '''
 
 
@@ -316,10 +317,6 @@ if __name__ == "__main__":
     client = carla.Client('localhost', 2000)
     world = client.get_world()
     
-    # 1. Test the functionality
+    # Test the functionality
     BEV_test(world)
-
-    # 2. Sample and store data
-    # data_sampling(world)
-    
 
