@@ -27,6 +27,7 @@
     "stuck_detection":{
       "time_out": 60,
       "pedestrian":{
+        "dist": 25,
         "min_pedestrians": 10
       },
       "vehicle":{
