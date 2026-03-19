@@ -8,18 +8,44 @@ import random
 
 class Spector:
     '''
-    Manages the spectator camera and provides debugging visualization tools for displaying key map features in CARLA.
-    Initializes the camera position and defines boundaries (dist) for drawing waypoints and vehicle/pedestrian spawn points.
+    Class for controlling the spectator camera and visualizing important map information in CARLA.
+
+    This class is mainly used for debugging and scenario inspection. It can place the spectator
+    camera above a target region, visualize vehicle and pedestrian spawn points, draw drivable
+    waypoints, and display lane types across the map.
+
+    Attributes:
+        world: CARLA world object.
+        world_map: CARLA map object used for waypoint queries and spawn point lookup.
+        x, y, z: Spectator camera center position.
+        dist: Distance used to define the local region of interest around the target location.
+        wp_step: Step size used when generating waypoints for visualization.
 
     Methods:
-        set_spector(): Positions the camera for an overhead view.
-        get_pos(): Get the current spector's coordinate.
-        get_ped_spawn_points(): Get a list of pedestrians' spawn points.
-        show_waypoints(): Draws map waypoints (green). -> only drivable points
-        show_vehicles_spawn_points(): Draws default vehicle spawn points (red).
-        show_ped_spawn_points(): Draws pedestrian spawn points inside/outside the intersection (blue).
-        show_lane_types(): Draw all lane types on the map and set spector to the center of the map.
-        show_intersection_info(): Sets camera and draws all visualizations on the intersection.
+        set_spector():
+            Set the spectator camera to an overhead view centered at the target location.
+
+        get_pos():
+            Return the current spectator transform information.
+
+        get_ped_spawn_points(ped_num, in_intersection=True):
+            Generate pedestrian spawn points either inside the intersection region or across
+            the whole map.
+
+        show_waypoints():
+            Draw drivable waypoints on the map for visualization.
+
+        show_vehicles_spawn_points():
+            Draw the default vehicle spawn points provided by the map.
+
+        show_ped_spawn_points(ped_num, in_intersection=True):
+            Draw sampled pedestrian spawn points for debugging.
+
+        show_lane_types():
+            Draw lane types across the map using different colors.
+
+        show_intersection_info():
+            Set the spectator view and draw multiple intersection-related debug visualizations.
     '''
     def __init__(self, world, location, dist=25, wp_step=2):
         self.dist = dist
@@ -162,23 +188,42 @@ class Spector:
 
 class CrossroadPedestrians:
     '''
-    Manages the spawning and AI control of pedestrians, allowing for them to be concentrated near a specific intersection or spread across the map.
-    Pedestrians are spawned on the navigation mesh (with Z-offset) and given an AI controller to walk toward a random destination.
+    Class for spawning and managing pedestrians in the intersection scenario.
+
+    This class generates pedestrian spawn points, spawns walkers with AI controllers, assigns
+    walking destinations, and keeps track of each pedestrian's goal location. Pedestrians can
+    either be concentrated near the target intersection or sampled from the whole map.
 
     Attributes:
-        dist (float): Defines the bounding box distance from the center location for intersection-specific spawning.
-        ped_num (int): The target number of pedestrians to spawn.
-        speed (float): The maximum speed (m/s) for the walker AI controller. (maximum speed = 2)
-    
+        world: CARLA world object.
+        location: Center location of the target intersection.
+        x, y, z: Coordinates of the target intersection center.
+        dist: Distance used to define the intersection spawning region.
+        ped_num: Number of pedestrians to spawn.
+        in_intersection: Whether pedestrians should be spawned only near the intersection.
+        speed: Walking speed assigned to the pedestrian AI controller.
+        ped_goal_loc: Dictionary mapping pedestrian ID to its goal location.
+
     Methods:
-        get_ped_spawn_points(): Generates a list of valid carla.Transform spawn points for pedestrians.
-        spawn_single_walker(): Spawns a single walker and its AI controller, setting its destination.
-        pedestrians_spawn(): Orchestrates the spawning of the total number of pedestrians.
+        get_ped_spawn_points(ped_num, in_intersection=True):
+            Generate valid pedestrian spawn points either inside the intersection area or
+            randomly across the map.
+
+        spawn_single_walker(spawn_location, destination):
+            Spawn one pedestrian and its AI controller, assign a destination, and store the
+            pedestrian's goal location.
+
+        pedestrians_spawn():
+            Spawn the full set of pedestrians for the current episode.
+
+        reset_pedestrians():
+            Clear the stored pedestrian goal-location dictionary.
     '''
     config = load_config("sim_config.json")["simulation"]
     def __init__(self, world, location,
                 dist=config["intersection"]["dist"], 
-                ped_num=config["pedestrian"]["ped_num"], 
+                ped_num=config["pedestrian"]["ped_num"],
+                speed_range=config["pedestrian"]["speed_range"], 
                 in_intersection=True
             ):
         
@@ -188,8 +233,8 @@ class CrossroadPedestrians:
         self.dist = dist
         self.ped_num = ped_num
         self.in_intersection = in_intersection
-        self.speed = 1.0
-        # self.speed = 2
+        self.speed = random.uniform(speed_range[0], speed_range[1])
+        self.ped_goal_loc = {}
     
     
     def get_ped_spawn_points(self, ped_num, in_intersection=True):
@@ -220,7 +265,7 @@ class CrossroadPedestrians:
         return spawn_points
 
 
-    def spawn_single_walker(self, spawn_location, destination):
+    def spawn_single_walker(self, spawn_location, destination: carla.Location):
         blueprint_library = self.world.get_blueprint_library()
         walker_bps = list(blueprint_library.filter('walker.pedestrian.*'))
         walker_bp = random.choice(walker_bps)
@@ -244,7 +289,7 @@ class CrossroadPedestrians:
 
         if pedestrian is None:
             # print("Failed to spawn pedestrian")
-            return False
+            return 
 
         controller_bp = blueprint_library.find('controller.ai.walker')
         controller = self.world.spawn_actor(controller_bp, carla.Transform(), pedestrian)
@@ -253,13 +298,19 @@ class CrossroadPedestrians:
         if controller is None:
             # print("AI controller failed to spawn, destroying pedestrian.")
             pedestrian.destroy()
-            return False
+            return 
 
         controller.start()
-        controller.set_max_speed(self.speed + random.random())
+        controller.set_max_speed(self.speed)
         controller.go_to_location(destination)
 
-        return True
+        # Keep track of ped's goal lcoation
+        self.ped_goal_loc[pedestrian.id] = np.array(
+            [destination.x, destination.y, destination.z], 
+            dtype=np.float32
+        )
+
+        return pedestrian
 
     
     def pedestrians_spawn(self):
@@ -272,30 +323,36 @@ class CrossroadPedestrians:
             if self.spawn_single_walker(spawn_location, destination):
                 spawned += 1
 
+    def reset_pedestrians(self):
+        self.ped_goal_loc = {}
+
 
 class AggressiveVehicles:
     '''
-    Manages the spawning and configuration of vehicles with aggressive driving behaviors near a specific intersection.
-    
-    Vehicles are spawned on driving lanes within a specified distance of the target location 
-    and are configured to ignore traffic lights/signs and exceed the speed limit by 100% via the CARLA Traffic Manager.
+    Class for spawning vehicles with aggressive driving behavior near the target intersection.
+
+    This class finds nearby drivable spawn locations, spawns vehicles, enables autopilot,
+    and configures the CARLA Traffic Manager so that the spawned vehicles behave more
+    aggressively, such as driving faster and ignoring traffic lights or signs.
 
     Attributes:
-        veh_num (int): The target number of vehicles to spawn.
-        dist_to_intersection (float): Maximum distance (meters) from the location to find spawn points.
-        speed_diff (float): Percentage speed difference (negative is faster than limit).
-        dist_lead (float): Minimum distance to maintain from a leading vehicle.
-        wp_step (int): 
-    
+        client: CARLA client object.
+        world: CARLA world object.
+        world_map: CARLA map object used for waypoint queries.
+        location: Center location of the target intersection.
+        veh_num: Number of vehicles to spawn.
+        dist_to_intersection: Maximum distance from the intersection for valid vehicle spawn points.
+        speed_diff: Percentage speed difference applied through the Traffic Manager.
+        dist_lead: Desired distance to the leading vehicle.
+        wp_step: Step size used when generating waypoints for candidate vehicle spawn points.
+
     Methods:
-        aggressive_vehicles_spawn(): Finds spawn points, spawns vehicles, and applies Traffic Manager settings for aggressive behavior.
-
-    
-    TODO Check if TM has ignore ped or not (improve vehicle performance)
-
+        aggressive_vehicles_spawn():
+            Generate nearby vehicle spawn points, spawn vehicles, enable autopilot, and apply
+            aggressive Traffic Manager settings.
     '''
     config = load_config("sim_config.json")["simulation"]["vehicle"]
-    def __init__(self, client, world, world_map, location, 
+    def __init__(self, client, world, location, 
                  veh_num=config["veh_num"], 
                  dist_to_intersection=config["dist_to_intersection"],
                  speed_diff=config["speed_diff"],
@@ -305,7 +362,7 @@ class AggressiveVehicles:
         
         self.client = client
         self.world = world
-        self.world_map = world_map
+        self.world_map = self.world.get_map()
         self.location = location
         self.veh_num = veh_num
         self.dist_to_intersection = dist_to_intersection
@@ -379,16 +436,6 @@ def cleanup_simulation(world):
     world.tick()
 
 
-def spawn_actors(world, aggressive_vehicles: AggressiveVehicles, cross_street_pedestrians: CrossroadPedestrians):
-    
-    # Cleanup pedestrians and vehivles
-    cleanup_simulation(world)
-
-    # Spawn vehicles and pedestrians
-    aggressive_vehicles.aggressive_vehicles_spawn()
-    cross_street_pedestrians.pedestrians_spawn()
-
-
 def refresh_sim(world, refresh_conditions: dict, intersection_position: carla.Location):
     
     all_vehicles = world.get_actors().filter("vehicle.*")
@@ -452,3 +499,23 @@ def refresh_sim(world, refresh_conditions: dict, intersection_position: carla.Lo
         should_refresh = True
 
     return sim_state, should_refresh
+
+
+def spawn_actors(world, 
+                 spector: Spector, 
+                 aggressive_vehicles: AggressiveVehicles,
+                 crossroad_pedestrians: CrossroadPedestrians,
+    ):
+    # Clean up world
+    cleanup_simulation(world)
+    crossroad_pedestrians.reset_pedestrians()
+
+    # Set spector
+    spector.set_spector()
+    # Spawn actors
+    aggressive_vehicles.aggressive_vehicles_spawn()
+    crossroad_pedestrians.pedestrians_spawn()
+
+    # Warmup world
+    for _ in range(3):
+        world.tick()
