@@ -1,37 +1,47 @@
 #!/bin/bash
+set -e
 
-# Define your paths
-CARLA_PATH="$HOME/CARLA_0.9.16"
-PROJ_PATH="$HOME/ASU/BELIV/pedestrian_RL"
-CONDA_SH="$HOME/miniconda3/etc/profile.d/conda.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# 1. Start a new detached tmux session
-tmux new-session -d -s pedestrian_rl
+CONFIG_FILE="$SCRIPT_DIR/user_config.sh"
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+fi
 
-# --- STEP 1: START CARLA ---
-tmux send-keys -t pedestrian_rl "cd $CARLA_PATH && ./CarlaUE4.sh" C-m
+CARLA_PATH="${CARLA_PATH:-$HOME/CARLA_0.9.16}"
+CONDA_SH="${CONDA_SH:-$HOME/miniconda3/etc/profile.d/conda.sh}"
+CONDA_ENV="${CONDA_ENV:-D2RL}"
+SESSION_NAME="${SESSION_NAME:-ped_bev_debug}"
+CARLA_ARGS="${CARLA_ARGS:-$CARLA_NVIDIA_ARG}"
+
+if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    echo "tmux session '$SESSION_NAME' already exists."
+    echo "Attach with: tmux attach -t $SESSION_NAME"
+    exit 1
+fi
+
+tmux new-session -d -s "$SESSION_NAME"
+
+# Pane 1: CARLA
+tmux send-keys -t "$SESSION_NAME" \
+  "cd \"$CARLA_PATH\" && ./CarlaUE4.sh $CARLA_ARGS" C-m
 
 echo "Waiting for CARLA to initialize..."
-# Wait until the CarlaUE4 process actually exists
 while ! pgrep -f "CarlaUE4" > /dev/null; do
     sleep 2
 done
-sleep 15 # Extra buffer for the map to load
+sleep 10
 
-# --- STEP 2: START INTERSECTION SIM ---
-tmux split-window -h -t pedestrian_rl
-tmux send-keys -t pedestrian_rl "source $CONDA_SH && conda activate D2RL && cd $PROJ_PATH && python -m intersection_sim.intersection_sim" C-m
+# Pane 2: intersection sim
+tmux split-window -h -t "$SESSION_NAME"
+tmux send-keys -t "$SESSION_NAME" \
+  "source \"$CONDA_SH\" && conda activate \"$CONDA_ENV\" && cd \"$REPO_ROOT\" && python -m pedestrian_rl.simulation.intersection_sim" C-m
+sleep 5
 
-echo "Verifying Intersection Simulation..."
-# Wait for the python process to be active
-while ! pgrep -f "intersection_sim.intersection_sim" > /dev/null; do
-    sleep 2
-done
-sleep 5 # Allow it to spawn pedestrians in the world
+# Pane 3: BEV display
+tmux split-window -v -t "$SESSION_NAME:0.1"
+tmux send-keys -t "$SESSION_NAME" \
+  "source \"$CONDA_SH\" && conda activate \"$CONDA_ENV\" && cd \"$REPO_ROOT\" && python -m pedestrian_rl.data_collection.bev.bev_sample" C-m
 
-# --- STEP 3: START BEV SAMPLE ---
-tmux split-window -v -t pedestrian_rl
-tmux send-keys -t pedestrian_rl "source $CONDA_SH && conda activate D2RL && cd $PROJ_PATH && python -m data_collection.BEV_sample" C-m
-
-# 5. Attach to session
-tmux attach-session -t pedestrian_rl
+tmux attach-session -t "$SESSION_NAME"
