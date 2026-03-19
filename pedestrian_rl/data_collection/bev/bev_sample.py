@@ -295,9 +295,7 @@ class BEVSample:
 
 
 # Functions for testing the functionality of BEV sampling
-def find_pedestrian(world):
-    test_ped = None
-    # print("Waiting for pedestrians spawning...")
+def find_pedestrian(world, test_ped):
 
     while test_ped is None:
         # world.tick() to ensure pedestrians are spawned
@@ -316,6 +314,7 @@ def BEV_test(world):
     bev_wrapper = BEVWrapper(cfg=None, world=world)
     ped_prev_location = {}
     ped_prev_frame = {}
+    test_ped = None
 
     while True:
         world.tick()
@@ -323,8 +322,9 @@ def BEV_test(world):
         frame_id = snapshot.frame
         dt_fixed = world.get_settings().fixed_delta_seconds
 
-        test_ped = find_pedestrian(world)
-        if test_ped is None or not test_ped.is_alive:
+        test_ped = find_pedestrian(world, test_ped)
+        if not test_ped.is_alive:
+            test_ped = None
             continue
 
         bev_sample = BEVSample(actor=test_ped, bev_wrapper=bev_wrapper)

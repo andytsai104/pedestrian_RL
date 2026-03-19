@@ -1,8 +1,5 @@
 import carla
-import numpy as np
-import math
 import os
-import random
 import cv2
 from ..utils.config_loader import load_config
 from ..utils.sim_utils import Spector, CrossroadPedestrians, AggressiveVehicles, refresh_sim, spawn_actors
@@ -10,9 +7,14 @@ from ..data_collection.bev.bev_sample import BEVWrapper, BEVSample, BEV_test
 from ..data_collection.state_action_pair import PedestrianStateAction
 from ..data_collection.utils import DataSampler, convert_to_dataset
 
-def data_sampling_sim(output_file=True, no_rendering_mode=True, print_out_data=False):
+'''TODO: Increase dataset quality
+Create a logic that sample pedestrians in the certain area only (in the intersection)
+'''
+
+def data_sampling_sim(output_file=True, no_rendering_mode=True, show_bev=False, print_out_data=False):
     # ----- connect to CARLA -----
     config = load_config("sim_config.json")
+    num_episode = config["dataset"]["num_episode"]
     sim_config = config["simulation"]
     fixed_delta_time = sim_config["fixed_delta_seconds"]
 
@@ -81,6 +83,11 @@ def data_sampling_sim(output_file=True, no_rendering_mode=True, print_out_data=F
     sampler.select_target_ped_ids()
 
     while True:
+        if episode_idx == num_episode:
+            print(f"\nSampling finished: collected {episode_idx} episodes.")
+            print(f"Dataset saved to: {output_path}")
+            break
+
         world.tick()
 
         # ----- refresh episode if needed -----
@@ -134,7 +141,7 @@ def data_sampling_sim(output_file=True, no_rendering_mode=True, print_out_data=F
             sampler.append_sample(ped_info)
 
         # Visualize the last pedestrian
-        if print_out_data:
+        if (print_out_data) and (frame_id%50 ==0):
             print(
                 f"\n[Ped Sample] "
                 f"ped_id={ped_info.ped_id} | frame={frame_id}\n"
@@ -146,6 +153,7 @@ def data_sampling_sim(output_file=True, no_rendering_mode=True, print_out_data=F
                 f"  target_direction : {ped_info.action['target_direction']}\n"
             )
 
+        if (show_bev):
             image = bev_sample.visualize_bev()
             cv2.imshow("BEV Debug Tool", image)
             if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -155,13 +163,24 @@ def visualize_sampled_data():
     data_sampling_sim(
         output_file=False,
         no_rendering_mode=False,
+        show_bev=True,
         print_out_data=True    
     )
 
 if __name__ == "__main__":
 
-    # Test the functionality of data sampling
-    # visualize_sampled_data()
+    try:
+        # Test the functionality of data sampling
+        # visualize_sampled_data()
 
-    # Output dataset
-    data_sampling_sim()
+        # Output dataset
+        data_sampling_sim(
+            output_file=True,
+            no_rendering_mode=True,
+            show_bev=False,
+            print_out_data=True   
+        )
+    except KeyboardInterrupt:
+        print("Sampling stopped by user.")
+    finally:
+        cv2.destroyAllWindows()

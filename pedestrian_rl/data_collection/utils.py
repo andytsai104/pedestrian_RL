@@ -4,6 +4,7 @@ import random
 import os
 import h5py
 import numpy as np
+from collections import defaultdict
 from ..utils.sim_utils import CrossroadPedestrians
 from ..data_collection.bev.bev_sample import BEVSample, BEVWrapper
 from ..data_collection.state_action_pair import PedestrianStateAction
@@ -188,103 +189,120 @@ def convert_to_dataset(episode_data: list, output_path, episode_idx=None):
 
     HDF5 structure:
         /episode_xxxxx/
-            ped_id              (N,)
-            frame_id            (N,)
-            timestamp           (N,)
-            state/bev_data      (N, H, W, C)
-            state/current_location  (N, 3)
-            state/velocity      (N, 3)
-            state/speed         (N,)
-            state/motion_heading (N,)
-            state/goal_location (N, 3)
-            action/target_speed (N,)
-            action/target_direction (N, 3)
+            /ped_<id>/
+                frame_id                    (N,)
+                timestamp                   (N,)
+                state/bev_data              (N, H, W, C)
+                state/current_location      (N, 3)
+                state/velocity              (N, 3)
+                state/speed                 (N,)
+                state/motion_heading        (N,)
+                state/goal_location         (N, 3)
+                action/target_speed         (N,)
+                action/target_direction     (N, 3)
     """
     if len(episode_data) == 0:
         print("[convert_to_dataset] No data to save.")
         return
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    group_name = f"episode_{episode_idx:03d}" if episode_idx is not None else "episode"
 
-    group_name = f"episode_{episode_idx:05d}" if episode_idx is not None else "episode"
-
-    ped_ids = []
-    frame_ids = []
-    timestamps = []
-
-    bev_data_list = []
-    current_locations = []
-    velocities = []
-    speeds = []
-    motion_headings = []
-    goal_locations = []
-
-    target_speeds = []
-    target_directions = []
-
+    # Organize the sampled data to {ped_id: [PedestrainStateAction_1, PedestrainStateAction_2, ...]}
+    ped_groups = defaultdict(list)
     for sample in episode_data:
-        ped_ids.append(sample.ped_id)
-        frame_ids.append(sample.state_action_pair["frame_id"])
+        ped_groups[sample.ped_id].append(sample)
 
-        ts = sample.state_action_pair["timestamp"]
-        # CARLA timestamp object -> float seconds
-        if hasattr(ts, "elapsed_seconds"):
-            timestamps.append(float(ts.elapsed_seconds))
-        else:
-            timestamps.append(float(ts))
-
-        bev_data_list.append(np.asarray(sample.state["bev_data"], dtype=np.uint8))
-        current_locations.append(np.asarray(sample.state["current_location"], dtype=np.float32))
-        velocities.append(np.asarray(sample.state["velocity"], dtype=np.float32))
-        speeds.append(np.float32(sample.state["speed"]))
-        motion_headings.append(np.float32(sample.state["motion_heading"]))
-
-        goal_loc = sample.state["goal_location"]
-        if hasattr(goal_loc, "x"):  # carla.Location
-            goal_loc = np.array([goal_loc.x, goal_loc.y, goal_loc.z], dtype=np.float32)
-        else:
-            goal_loc = np.asarray(goal_loc, dtype=np.float32)
-        goal_locations.append(goal_loc)
-
-        target_speeds.append(np.float32(sample.action["target_speed"]))
-        target_directions.append(np.asarray(sample.action["target_direction"], dtype=np.float32))
-
-    ped_ids = np.asarray(ped_ids, dtype=np.int32)
-    frame_ids = np.asarray(frame_ids, dtype=np.int32)
-    timestamps = np.asarray(timestamps, dtype=np.float64)
-
-    bev_data = np.stack(bev_data_list, axis=0)                  # (N, H, W, C)
-    current_locations = np.stack(current_locations, axis=0)     # (N, 3)
-    velocities = np.stack(velocities, axis=0)                   # (N, 3)
-    speeds = np.asarray(speeds, dtype=np.float32)               # (N,)
-    motion_headings = np.asarray(motion_headings, dtype=np.float32)
-    goal_locations = np.stack(goal_locations, axis=0)           # (N, 3)
-
-    target_speeds = np.asarray(target_speeds, dtype=np.float32)
-    target_directions = np.stack(target_directions, axis=0)     # (N, 3)
-
-    with h5py.File(output_path, "a") as f:
+    with h5py.File(output_path, "a") as file:
         # overwrite same episode if exists
-        if group_name in f:
-            del f[group_name]
+        if group_name in file:
+            del file[group_name]
 
-        grp = f.create_group(group_name)
-        state_grp = grp.create_group("state")
-        action_grp = grp.create_group("action")
+        episode_grp = file.create_group(group_name)
 
-        grp.create_dataset("ped_id", data=ped_ids)
-        grp.create_dataset("frame_id", data=frame_ids)
-        grp.create_dataset("timestamp", data=timestamps)
+        for ped_id, samples in ped_groups.items():
+            # sort each pedestrian's samples by frame_id
+            samples = sorted(samples, key=lambda s: s.state_action_pair["frame_id"])
 
-        state_grp.create_dataset("bev_data", data=bev_data, compression="gzip")
-        state_grp.create_dataset("current_location", data=current_locations)
-        state_grp.create_dataset("velocity", data=velocities)
-        state_grp.create_dataset("speed", data=speeds)
-        state_grp.create_dataset("motion_heading", data=motion_headings)
-        state_grp.create_dataset("goal_location", data=goal_locations)
+            # --- Info Buffer Initialization ---
+            # Time
+            frame_ids = []
+            timestamps = []
+            
+            # States
+            bev_data_list = []
+            current_locations = []
+            velocities = []
+            speeds = []
+            motion_headings = []
+            goal_locations = []
 
-        action_grp.create_dataset("target_speed", data=target_speeds)
-        action_grp.create_dataset("target_direction", data=target_directions)
+            # Actions
+            target_speeds = []
+            target_directions = []
+
+            # --- Store Data ---
+            for sample in samples:
+                # Time
+                frame_ids.append(sample.state_action_pair["frame_id"])
+
+                ts = sample.state_action_pair["timestamp"]
+                if hasattr(ts, "elapsed_seconds"):
+                    timestamps.append(float(ts.elapsed_seconds))
+                else:
+                    timestamps.append(float(ts))
+
+                # States
+                bev_data_list.append(np.asarray(sample.state["bev_data"], dtype=np.uint8))
+                current_locations.append(np.asarray(sample.state["current_location"], dtype=np.float32))
+                velocities.append(np.asarray(sample.state["velocity"], dtype=np.float32))
+                speeds.append(np.float32(sample.state["speed"]))
+                motion_headings.append(np.float32(sample.state["motion_heading"]))
+
+                goal_loc = sample.state["goal_location"]
+                if hasattr(goal_loc, "x"):   # carla.Location
+                    goal_loc = np.array([goal_loc.x, goal_loc.y, goal_loc.z], dtype=np.float32)
+                else:
+                    goal_loc = np.asarray(goal_loc, dtype=np.float32)
+                goal_locations.append(goal_loc)
+
+                # Actions
+                target_speeds.append(np.float32(sample.action["target_speed"]))
+                target_directions.append(np.asarray(sample.action["target_direction"], dtype=np.float32))
+
+            # Convert data to numpy array/matrix
+            frame_ids = np.asarray(frame_ids, dtype=np.int32)
+            timestamps = np.asarray(timestamps, dtype=np.float64)
+
+            bev_data = np.stack(bev_data_list, axis=0)
+            current_locations = np.stack(current_locations, axis=0)
+            velocities = np.stack(velocities, axis=0)
+            speeds = np.asarray(speeds, dtype=np.float32)
+            motion_headings = np.asarray(motion_headings, dtype=np.float32)
+            goal_locations = np.stack(goal_locations, axis=0)
+
+            target_speeds = np.asarray(target_speeds, dtype=np.float32)
+            target_directions = np.stack(target_directions, axis=0)
+
+            # --- Create HDF5 dataset ---
+            # Create groups
+            ped_grp = episode_grp.create_group(f"ped_{ped_id}")
+            state_grp = ped_grp.create_group("state")
+            action_grp = ped_grp.create_group("action")
+
+            # ped_grp.create_dataset("ped_id", data=np.asarray([ped_id], dtype=np.int32))
+            ped_grp.create_dataset("frame_id", data=frame_ids)
+            ped_grp.create_dataset("timestamp", data=timestamps)
+
+            state_grp.create_dataset("bev_data", data=bev_data, compression="gzip")
+            state_grp.create_dataset("current_location", data=current_locations)
+            state_grp.create_dataset("velocity", data=velocities)
+            state_grp.create_dataset("speed", data=speeds)
+            state_grp.create_dataset("motion_heading", data=motion_headings)
+            state_grp.create_dataset("goal_location", data=goal_locations)
+
+            action_grp.create_dataset("target_speed", data=target_speeds)
+            action_grp.create_dataset("target_direction", data=target_directions)
 
     print(f"[convert_to_dataset] Saved {len(episode_data)} samples to {output_path}::{group_name}")
 
