@@ -13,22 +13,23 @@
     },
 
     "vehicle": {
-      "veh_num": 30,
-      "dist_to_intersection": 60,
-      "speed_diff": -50,
+      "veh_num": 25,
+      "dist_to_intersection": 50,
+      "speed_diff": 50,
       "dist_lead": 2.0,
       "wp_step": 2    
     },
 
     "pedestrian":{
-      "ped_num": 40
+      "ped_num": 60,
+      "speed_range": [0.5, 2]
     },
 
     "stuck_detection":{
       "time_out": 60,
       "pedestrian":{
         "dist": 25,
-        "min_pedestrians": 10
+        "min_pedestrians": 15
       },
       "vehicle":{
         "velocity_threshold": 0.1,
@@ -40,13 +41,14 @@
   },
 
   "bev": {
-    "size": [320, 320],
-    "range_m": 16,
-    "pixels_per_meter": 20
+    "size": [160, 160],
+    "range": 16
   },
 
   "dataset": {
-    "save_path": "datasets/carla_pedestrians",
+    "save_path": "datasets/pedestrian",
+    "file_name": "pedestrian_dataset.h5", 
+    "num_ped_per_episode": 10,
     "format": "hdf5"
   }
 }
