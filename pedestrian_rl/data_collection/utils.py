@@ -4,10 +4,12 @@ import random
 import os
 import h5py
 import numpy as np
+import torch
+from torch.utils.data import Dataset, DataLoader
 from collections import defaultdict
 from ..utils.sim_utils import CrossroadPedestrians
-from ..data_collection.bev.bev_sample import BEVSample, BEVWrapper
-from ..data_collection.state_action_pair import PedestrianStateAction
+from .bev.bev_sample import BEVSample, BEVWrapper
+from .state_action_pair import PedestrianStateAction
 
 
 class DataSampler:
@@ -307,3 +309,156 @@ def convert_to_dataset(episode_data: list, output_path, episode_idx=None):
     print(f"[convert_to_dataset] Saved {len(episode_data)} samples to {output_path}::{group_name}")
 
 
+class PedestrianStepDataset(Dataset):
+    """
+    One sample = one pedestrian at one timestep.
+
+    HDF5 structure:
+        episode_xxx/
+            ped_xxx/
+                action/
+                    target_direction
+                    target_speed
+                frame_id
+                state/
+                    bev_data
+                    current_location
+                    goal_location
+                    motion_heading
+                    speed
+                    velocity
+                timestamp
+    """
+
+    def __init__(self, h5_path, use_goal_relative=True):
+        self.h5_path = h5_path
+        self.use_goal_relative = use_goal_relative
+        self.index = []
+        self._h5_file = None
+
+        self._build_index()
+
+    def _build_index(self):
+        """Build flat index: [(episode_name, ped_name, t), ...]"""
+        with h5py.File(self.h5_path, "r") as f:
+            for episode_name in f.keys():
+                episode_group = f[episode_name]
+
+                for ped_name in episode_group.keys():
+                    ped_group = episode_group[ped_name]
+
+                    # number of timesteps for this pedestrian
+                    n_steps = ped_group["state"]["bev_data"].shape[0]
+
+                    for t in range(n_steps):
+                        self.index.append((episode_name, ped_name, t))
+
+    def _get_h5(self):
+        """
+        Lazily open HDF5 file.
+        Better than reopening the file on every __getitem__ call.
+        """
+        if self._h5_file is None:
+            self._h5_file = h5py.File(self.h5_path, "r")
+        return self._h5_file
+
+    def __len__(self):
+        return len(self.index)
+
+    def __getitem__(self, idx):
+        f = self._get_h5()
+        episode_name, ped_name, t = self.index[idx]
+
+        ped_group = f[episode_name][ped_name]
+
+        # ----- state -----
+        bev_data = ped_group["state"]["bev_data"][t]                  # (H, W, C)
+        current_location = ped_group["state"]["current_location"][t]  # (2,) or (3,)
+        goal_location = ped_group["state"]["goal_location"][t]        # (2,) or (3,)
+        motion_heading = ped_group["state"]["motion_heading"][t]      # scalar
+        speed = ped_group["state"]["speed"][t]                        # scalar
+        velocity = ped_group["state"]["velocity"][t]                  # (2,) or (3,)
+
+        # ----- action -----
+        target_speed = ped_group["action"]["target_speed"][t]         # scalar
+        target_direction = ped_group["action"]["target_direction"][t] # (2,) or (3,)
+
+        # ----- metadata -----
+        frame_id = ped_group["frame_id"][t]
+        timestamp = ped_group["timestamp"][t]
+
+        # Convert to numpy float32
+        bev_data = np.asarray(bev_data, dtype=np.float32)
+        current_location = np.asarray(current_location, dtype=np.float32)
+        goal_location = np.asarray(goal_location, dtype=np.float32)
+        velocity = np.asarray(velocity, dtype=np.float32)
+        target_direction = np.asarray(target_direction, dtype=np.float32)
+
+        t = np.int32(t)
+        frame_id = np.int32(frame_id)
+        timestamp = np.float32(timestamp)
+
+        motion_heading = np.float32(motion_heading)
+        speed = np.float32(speed)
+        target_speed = np.float32(target_speed)
+
+        if self.use_goal_relative:
+            goal_rel = goal_location - current_location
+        else:
+            goal_rel = goal_location.copy()
+
+        sample = {
+            # inputs
+            "bev_data": torch.from_numpy(bev_data),                      # (H, W, C)
+            "current_location": torch.from_numpy(current_location),
+            "goal_location": torch.from_numpy(goal_location),
+            "goal_rel": torch.from_numpy(goal_rel),
+            "velocity": torch.from_numpy(velocity),
+            "motion_heading": torch.tensor(motion_heading, dtype=torch.float32),
+            "speed": torch.tensor(speed, dtype=torch.float32),
+
+            # targets
+            "target_speed": torch.tensor(target_speed, dtype=torch.float32),
+            "target_direction": torch.from_numpy(target_direction),
+
+            # metadata
+            "episode": episode_name,
+            "ped_id": ped_name,
+            "timestep": t,
+            "frame_id": torch.tensor(frame_id),
+            "timestamp": torch.tensor(timestamp),
+        }
+
+        return sample
+
+    def close(self):
+        if getattr(self, "_h5_file", None) is not None:
+            try:
+                self._h5_file.close()
+            except Exception:
+                pass
+            finally:
+                self._h5_file = None
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
+def test_dataloader():
+    dataset_pth = "./datasets/pedestrian_dataset.h5"
+    dataset = PedestrianStepDataset(h5_path=dataset_pth)
+
+    loader = DataLoader(dataset, batch_size=4, shuffle=True)
+    batch = next(iter(loader))
+
+    for k, v in batch.items():
+        if hasattr(v, "shape"):
+            print(f"{k}: shape={v.shape}, dtype={v.dtype}")
+        else:
+            print(f"{k}: {v}")
+
+
+if __name__ == "__main__":
+    test_dataloader()

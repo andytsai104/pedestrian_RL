@@ -47,8 +47,9 @@
 
   "dataset": {
     "save_path": "datasets/pedestrian",
-    "file_name": "pedestrian_dataset.h5", 
-    "num_ped_per_episode": 10,
+    "file_name": "pedestrian_dataset.h5",
+    "num_episode": 20,
+    "num_ped_per_episode": 5,
     "format": "hdf5"
   }
 }

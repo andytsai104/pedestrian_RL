@@ -1,0 +1,18 @@
+{
+    "dataset_path": "./datasets/pedestrian/pedestrian_dataset.h5",
+    "save_dir": "./checkpoints/bc",
+    "figures_save_dir": "./media/bc",
+
+    "params":{
+        "batch_size": 32,
+        "num_epochs": 20,
+        "learning_rate": 1e-3,
+        "num_workers": 12
+    },
+
+    "cnn":{
+        "bev_feature_dim": 128,
+        "hidden_dim": 256,
+        "direction_dim": 3
+    }
+}
