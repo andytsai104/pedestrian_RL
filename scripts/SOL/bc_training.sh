@@ -1,4 +1,5 @@
 #!/bin/bash
+#SBATCH -G a100:1
 #SBATCH -p general
 #SBATCH -q class
 #SBATCH -n 1
