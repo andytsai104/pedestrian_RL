@@ -27,8 +27,7 @@ else
 fi
 
 # Initialize conda
-source ~/miniconda3/etc/profile.d/conda.sh
-conda activate /scratch/ctsai67/envs/carla_env
+source activate /scratch/ctsai67/envs/carla_env
 
 # Go to project
 cd ~/pedestrian_RL
