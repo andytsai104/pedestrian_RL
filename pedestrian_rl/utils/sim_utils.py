@@ -5,7 +5,6 @@ import math
 from .config_loader import load_config
 import random
 
-
 class Spector:
     '''
     Class for controlling the spectator camera and visualizing important map information in CARLA.
@@ -233,7 +232,10 @@ class CrossroadPedestrians:
         self.dist = dist
         self.ped_num = ped_num
         self.in_intersection = in_intersection
-        self.speed = random.uniform(speed_range[0], speed_range[1])
+        self.speed_range = speed_range
+        
+        self.ped_controller = {}
+        self.ped_controller_type = {}
         self.ped_goal_loc = {}
     
     
@@ -265,52 +267,93 @@ class CrossroadPedestrians:
         return spawn_points
 
 
-    def spawn_single_walker(self, spawn_location, destination: carla.Location):
+    def spawn_single_walker(
+            self,
+            spawn_location,
+            destination: carla.Location,
+            controller_type: str = "ai",
+            max_speed: float = None,
+        ):
         blueprint_library = self.world.get_blueprint_library()
-        walker_bps = list(blueprint_library.filter('walker.pedestrian.*'))
+        walker_bps = list(blueprint_library.filter("walker.pedestrian.*"))
         walker_bp = random.choice(walker_bps)
-        
-        if (type(spawn_location)==carla.Location):
-            spawn_location = spawn_location + carla.Location(z=1)
-            spawn_point = carla.Transform(spawn_location, carla.Rotation()) 
-        elif (type(spawn_location) == carla.Transform):
+
+        if isinstance(spawn_location, carla.Location):
+            spawn_location = spawn_location + carla.Location(z=1.0)
+            spawn_point = carla.Transform(spawn_location, carla.Rotation())
+        elif isinstance(spawn_location, carla.Transform):
             spawn_point = spawn_location
         else:
-            spawn_point = None
-            return False
-        
+            return None
+
         pedestrian = self.world.try_spawn_actor(walker_bp, spawn_point)
-
         self.world.tick()
-        # time.sleep(0.05)
-
-        # draw spawn point for visualization (Blue for spawn point)
-        # self.world.debug.draw_point(spawn_point.location, size=0.2, color=carla.Color(0, 0, 255), life_time=-1)
 
         if pedestrian is None:
-            # print("Failed to spawn pedestrian")
-            return 
+            return None
 
-        controller_bp = blueprint_library.find('controller.ai.walker')
-        controller = self.world.spawn_actor(controller_bp, carla.Transform(), pedestrian)
-
-
-        if controller is None:
-            # print("AI controller failed to spawn, destroying pedestrian.")
-            pedestrian.destroy()
-            return 
-
-        controller.start()
-        controller.set_max_speed(self.speed)
-        controller.go_to_location(destination)
-
-        # Keep track of ped's goal lcoation
-        self.ped_goal_loc[pedestrian.id] = np.array(
-            [destination.x, destination.y, destination.z], 
-            dtype=np.float32
+        ped_speed = (
+            float(max_speed)
+            if max_speed is not None
+            else random.uniform(self.speed_range[0], self.speed_range[1])
         )
 
+        controller_actor = None
+
+        if controller_type == "ai":
+            controller_bp = blueprint_library.find("controller.ai.walker")
+            controller_actor = self.world.spawn_actor(
+                controller_bp, carla.Transform(), pedestrian
+            )
+
+            if controller_actor is None:
+                pedestrian.destroy()
+                return None
+
+            controller_actor.start()
+            controller_actor.set_max_speed(ped_speed)
+            controller_actor.go_to_location(destination)
+
+        elif controller_type == "manual":
+            # No AI controller attached.
+            # BC / custom policy will call pedestrian.apply_control(...) every tick.
+            pass
+
+        else:
+            pedestrian.destroy()
+            raise ValueError(f"Unsupported controller_type: {controller_type}")
+
+        self.ped_goal_loc[pedestrian.id] = np.array(
+            [destination.x, destination.y, destination.z],
+            dtype=np.float32
+        )
+        self.ped_controller[pedestrian.id] = controller_actor
+        self.ped_controller_type[pedestrian.id] = controller_type
+
         return pedestrian
+    
+
+    def destroy_ped_controller(self, ped_id: int):
+        controller = self.ped_controller.get(ped_id, None)
+
+        if controller is None:
+            return False
+
+        if controller.is_alive:
+            try:
+                controller.stop()
+            except Exception:
+                pass
+            controller.destroy()
+
+        self.ped_controller[ped_id] = None
+        self.ped_controller_type[ped_id] = "manual"
+        return True
+
+    def reset_pedestrians(self):
+        self.ped_goal_loc = {}
+        self.ped_controller = {}
+        self.ped_controller_type = {}
 
     
     def pedestrians_spawn(self):
@@ -323,8 +366,6 @@ class CrossroadPedestrians:
             if self.spawn_single_walker(spawn_location, destination):
                 spawned += 1
 
-    def reset_pedestrians(self):
-        self.ped_goal_loc = {}
 
 
 class AggressiveVehicles:

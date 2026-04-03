@@ -58,6 +58,7 @@ class PedestrianStateAction:
             "velocity": None,               # (vx, vy): vx and vy can get heading and speed
             "speed": None,
             "motion_heading": None,         # angle in radians
+            "yaw_heading": None,            # angle in radians
             "goal_location": None,          # numpy.array (x, y, z) from CrossroadPedestrians
         }
         self.action = {
@@ -73,29 +74,32 @@ class PedestrianStateAction:
             "timestamp": timestamp
         }
 
-    # State setter
+    # ---------- state setter ----------
     def set_bev(self, bev_data):
         self.state["bev_data"] = bev_data
-    
-    def set_location(self, current_location: np.array):
+
+    def set_location(self, current_location: np.ndarray):
         self.state["current_location"] = current_location
-    
-    def set_velocity(self, v: np.array):
-        self.state["velocity"] = v
-    
+
+    def set_velocity(self, velocity: np.ndarray):
+        self.state["velocity"] = velocity
+
     def set_speed(self, speed: float):
         self.state["speed"] = speed
 
-    def set_heading(self, motion_heading):
+    def set_heading(self, motion_heading: float):
         self.state["motion_heading"] = motion_heading
-    
-    def set_goal_location(self, goal_location: np.array):
+
+    def set_yaw_heading(self, yaw_heading: float):
+        self.state["yaw_heading"] = yaw_heading
+
+    def set_goal_location(self, goal_location: np.ndarray):
         self.state["goal_location"] = goal_location
-    
-    # Action setter
+
+    # ---------- action setter ----------
     def set_direction(self, target_direction):
         self.action["target_direction"] = target_direction
-    
+
     def set_target_speed(self, target_speed: float):
         self.action["target_speed"] = target_speed
 
@@ -103,19 +107,22 @@ class PedestrianStateAction:
         self.set_direction(target_direction)
         self.set_target_speed(target_speed)
 
-    def set_states(self, 
-                    bev_data,
-                    current_location: np.array, 
-                    velocity: np.array, 
-                    speed: float,
-                    motion_heading, 
-                    goal_location: np.array
-        ):
-
+    def set_states(
+        self,
+        bev_data,
+        current_location: np.ndarray,
+        velocity: np.ndarray,
+        speed: float,
+        motion_heading: float,
+        yaw_heading: float,
+        goal_location: np.ndarray,
+    ):
         self.set_bev(bev_data)
         self.set_location(current_location)
         self.set_velocity(velocity)
         self.set_speed(speed)
         self.set_heading(motion_heading)
+        self.set_yaw_heading(yaw_heading)
         self.set_goal_location(goal_location)
+
 

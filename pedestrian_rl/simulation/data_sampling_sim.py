@@ -8,15 +8,17 @@ from ..data_collection.state_action_pair import PedestrianStateAction
 from ..data_collection.utils import DataSampler, convert_to_dataset
 
 '''TODO: Increase dataset quality
-Create a logic that sample pedestrians in the certain area only (in the intersection)
+Create a logic that sample pedestrians in the certain area only or every n steps (in the intersection)
 '''
 
 def data_sampling_sim(output_file=True, no_rendering_mode=True, show_bev=False, print_out_data=False):
     # ----- connect to CARLA -----
     config = load_config("sim_config.json")
     num_episode = config["dataset"]["num_episode"]
+    sample_every_n_steps = config["dataset"]["sample_every_n_steps"]
     sim_config = config["simulation"]
     fixed_delta_time = sim_config["fixed_delta_seconds"]
+
 
     client = carla.Client("localhost", 2000)
     client.set_timeout(10.0)
@@ -88,7 +90,8 @@ def data_sampling_sim(output_file=True, no_rendering_mode=True, show_bev=False, 
             print(f"Dataset saved to: {output_path}")
             break
 
-        world.tick()
+        for _ in range(sample_every_n_steps):
+            world.tick()
 
         # ----- refresh episode if needed -----
         sim_state, should_refresh = refresh_sim(

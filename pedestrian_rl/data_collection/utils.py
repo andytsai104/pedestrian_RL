@@ -12,6 +12,55 @@ from .bev.bev_sample import BEVSample, BEVWrapper
 from .state_action_pair import PedestrianStateAction
 
 
+
+'''
+Funtions help converting local-to-world or world-to-local vectors/coordinates
+'''
+def rotate_world_to_local_2d(vector_xy: np.ndarray, yaw_rad: float) -> np.ndarray:
+    '''
+    Convert a world-frame 2D vector [x, y] to the pedestrian local frame.
+    Output convention: [right, forward].
+    '''
+    vx = float(vector_xy[0])
+    vy = float(vector_xy[1])
+
+    forward_x = math.cos(yaw_rad)
+    forward_y = math.sin(yaw_rad)
+    right_x = -math.sin(yaw_rad)
+    right_y = math.cos(yaw_rad)
+
+    local_forward = vx * forward_x + vy * forward_y
+    local_right = vx * right_x + vy * right_y
+
+    return np.array([local_right, local_forward], dtype=np.float32)
+
+
+def rotate_local_to_world_2d(local_vector_rf: np.ndarray, yaw_rad: float) -> np.ndarray:
+    '''
+    Convert a pedestrian local-frame vector [right, forward] back to world frame [x, y].
+    '''
+    local_right = float(local_vector_rf[0])
+    local_forward = float(local_vector_rf[1])
+
+    forward_x = math.cos(yaw_rad)
+    forward_y = math.sin(yaw_rad)
+    right_x = -math.sin(yaw_rad)
+    right_y = math.cos(yaw_rad)
+
+    world_x = local_right * right_x + local_forward * forward_x
+    world_y = local_right * right_y + local_forward * forward_y
+
+    return np.array([world_x, world_y], dtype=np.float32)
+
+
+def normalize_direction_2d(direction_xy: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+    norm = float(np.linalg.norm(direction_xy))
+    if norm < eps:
+        return np.zeros(2, dtype=np.float32)
+    return (direction_xy / norm).astype(np.float32)
+
+
+
 class DataSampler:
     '''
     Class for sampling pedestrian state-action data during one simulation episode.
@@ -133,14 +182,15 @@ class DataSampler:
             else:
                 velocity = np.array([0.0, 0.0, 0.0], dtype=np.float32)
 
-        vx = velocity[0]
-        vy = velocity[1]
-        speed = float(math.sqrt(vx**2 + vy**2))
+        vx = float(velocity[0])
+        vy = float(velocity[1])
+        speed = float(math.sqrt(vx ** 2 + vy ** 2))
 
+        yaw_heading = math.radians(ped.get_transform().rotation.yaw)
         if speed >= 0.1:
-            motion_heading = math.atan2(vy, vx)
+            motion_heading = float(math.atan2(vy, vx))
         else:
-            motion_heading = math.radians(ped.get_transform().rotation.yaw)
+            motion_heading = float(yaw_heading)
 
         self.prev_ped_location[ped.id] = current_location
         self.prev_ped_frame[ped.id] = frame_id
@@ -154,11 +204,12 @@ class DataSampler:
             velocity=velocity,
             speed=speed,
             motion_heading=motion_heading,
-            goal_location=goal_location
+            yaw_heading=yaw_heading,
+            goal_location=goal_location,
         )
 
         # ----- action -----
-        target_speed = controller.speed
+        target_speed = float(controller.speed)
         direction = controller.direction
         target_direction = np.array(
             [direction.x, direction.y, direction.z],
@@ -199,6 +250,7 @@ def convert_to_dataset(episode_data: list, output_path, episode_idx=None):
                 state/velocity              (N, 3)
                 state/speed                 (N,)
                 state/motion_heading        (N,)
+                state/yaw_heading           (N,)
                 state/goal_location         (N, 3)
                 action/target_speed         (N,)
                 action/target_direction     (N, 3)
@@ -237,6 +289,7 @@ def convert_to_dataset(episode_data: list, output_path, episode_idx=None):
             velocities = []
             speeds = []
             motion_headings = []
+            yaw_headings = []
             goal_locations = []
 
             # Actions
@@ -261,6 +314,9 @@ def convert_to_dataset(episode_data: list, output_path, episode_idx=None):
                 speeds.append(np.float32(sample.state["speed"]))
                 motion_headings.append(np.float32(sample.state["motion_heading"]))
 
+                yaw_heading = sample.state.get("yaw_heading", sample.state["motion_heading"])
+                yaw_headings.append(np.float32(yaw_heading))
+
                 goal_loc = sample.state["goal_location"]
                 if hasattr(goal_loc, "x"):   # carla.Location
                     goal_loc = np.array([goal_loc.x, goal_loc.y, goal_loc.z], dtype=np.float32)
@@ -281,6 +337,7 @@ def convert_to_dataset(episode_data: list, output_path, episode_idx=None):
             velocities = np.stack(velocities, axis=0)
             speeds = np.asarray(speeds, dtype=np.float32)
             motion_headings = np.asarray(motion_headings, dtype=np.float32)
+            yaw_headings = np.asarray(yaw_headings, dtype=np.float32)
             goal_locations = np.stack(goal_locations, axis=0)
 
             target_speeds = np.asarray(target_speeds, dtype=np.float32)
@@ -301,6 +358,7 @@ def convert_to_dataset(episode_data: list, output_path, episode_idx=None):
             state_grp.create_dataset("velocity", data=velocities)
             state_grp.create_dataset("speed", data=speeds)
             state_grp.create_dataset("motion_heading", data=motion_headings)
+            state_grp.create_dataset("yaw_heading", data=yaw_headings)
             state_grp.create_dataset("goal_location", data=goal_locations)
 
             action_grp.create_dataset("target_speed", data=target_speeds)
@@ -310,7 +368,7 @@ def convert_to_dataset(episode_data: list, output_path, episode_idx=None):
 
 
 class PedestrianStepDataset(Dataset):
-    """
+    '''
     One sample = one pedestrian at one timestep.
 
     HDF5 structure:
@@ -328,36 +386,35 @@ class PedestrianStepDataset(Dataset):
                     speed
                     velocity
                 timestamp
-    """
+    '''
 
-    def __init__(self, h5_path, use_goal_relative=True):
+    def __init__(
+        self,
+        h5_path,
+        use_goal_relative=True,
+        goal_scale=16.0,
+        speed_eps=0.05,
+    ):
         self.h5_path = h5_path
         self.use_goal_relative = use_goal_relative
+        self.goal_scale = float(goal_scale)
+        self.speed_eps = float(speed_eps)
         self.index = []
         self._h5_file = None
 
         self._build_index()
 
     def _build_index(self):
-        """Build flat index: [(episode_name, ped_name, t), ...]"""
         with h5py.File(self.h5_path, "r") as f:
             for episode_name in f.keys():
                 episode_group = f[episode_name]
-
                 for ped_name in episode_group.keys():
                     ped_group = episode_group[ped_name]
-
-                    # number of timesteps for this pedestrian
                     n_steps = ped_group["state"]["bev_data"].shape[0]
-
                     for t in range(n_steps):
                         self.index.append((episode_name, ped_name, t))
 
     def _get_h5(self):
-        """
-        Lazily open HDF5 file.
-        Better than reopening the file on every __getitem__ call.
-        """
         if self._h5_file is None:
             self._h5_file = h5py.File(self.h5_path, "r")
         return self._h5_file
@@ -368,63 +425,72 @@ class PedestrianStepDataset(Dataset):
     def __getitem__(self, idx):
         f = self._get_h5()
         episode_name, ped_name, t = self.index[idx]
-
         ped_group = f[episode_name][ped_name]
 
         # ----- state -----
-        bev_data = ped_group["state"]["bev_data"][t]                  # (H, W, C)
-        current_location = ped_group["state"]["current_location"][t]  # (2,) or (3,)
-        goal_location = ped_group["state"]["goal_location"][t]        # (2,) or (3,)
-        motion_heading = ped_group["state"]["motion_heading"][t]      # scalar
-        speed = ped_group["state"]["speed"][t]                        # scalar
-        velocity = ped_group["state"]["velocity"][t]                  # (2,) or (3,)
+        bev_data = np.asarray(ped_group["state"]["bev_data"][t], dtype=np.float32)                      # (H, W, C)
+        current_location = np.asarray(ped_group["state"]["current_location"][t], dtype=np.float32)      # (2,) or (3,)
+        goal_location = np.asarray(ped_group["state"]["goal_location"][t], dtype=np.float32)            # (2,) or (3,)
+        velocity = np.asarray(ped_group["state"]["velocity"][t], dtype=np.float32)                      # (2,) or (3,)
+        speed = np.float32(ped_group["state"]["speed"][t])                                              # scalar
+        motion_heading = np.float32(ped_group["state"]["motion_heading"][t])                            # scalar
+
+        if "yaw_heading" in ped_group["state"]:
+            yaw_heading = np.float32(ped_group["state"]["yaw_heading"][t])                              # scalar
+        else:
+            yaw_heading = np.float32(motion_heading)
 
         # ----- action -----
-        target_speed = ped_group["action"]["target_speed"][t]         # scalar
-        target_direction = ped_group["action"]["target_direction"][t] # (2,) or (3,)
+        target_speed = np.float32(ped_group["action"]["target_speed"][t])                               # scalar
+        target_direction = np.asarray(ped_group["action"]["target_direction"][t], dtype=np.float32)     # (2,) or (3,)
 
         # ----- metadata -----
-        frame_id = ped_group["frame_id"][t]
-        timestamp = ped_group["timestamp"][t]
-
-        # Convert to numpy float32
-        bev_data = np.asarray(bev_data, dtype=np.float32)
-        current_location = np.asarray(current_location, dtype=np.float32)
-        goal_location = np.asarray(goal_location, dtype=np.float32)
-        velocity = np.asarray(velocity, dtype=np.float32)
-        target_direction = np.asarray(target_direction, dtype=np.float32)
-
-        t = np.int32(t)
-        frame_id = np.int32(frame_id)
-        timestamp = np.float32(timestamp)
-
-        motion_heading = np.float32(motion_heading)
-        speed = np.float32(speed)
-        target_speed = np.float32(target_speed)
+        frame_id = np.int32(ped_group["frame_id"][t])
+        timestamp = np.float32(ped_group["timestamp"][t])
+        timestep = np.int32(t)
 
         if self.use_goal_relative:
-            goal_rel = goal_location - current_location
+            goal_world = goal_location - current_location
         else:
-            goal_rel = goal_location.copy()
+            goal_world = goal_location.copy()
+
+        velocity_local = rotate_world_to_local_2d(velocity[:2], yaw_heading)
+        goal_rel_local = rotate_world_to_local_2d(goal_world[:2], yaw_heading)
+        goal_rel_local = goal_rel_local / max(self.goal_scale, 1e-6)
+        goal_rel_local = np.clip(goal_rel_local, -2.0, 2.0).astype(np.float32)
+
+        target_direction_local = rotate_world_to_local_2d(target_direction[:2], yaw_heading)
+        target_direction_local = normalize_direction_2d(target_direction_local)
+
+        direction_valid = bool(target_speed > self.speed_eps)
+        yaw_sin = np.float32(math.sin(float(yaw_heading)))
+        yaw_cos = np.float32(math.cos(float(yaw_heading)))
 
         sample = {
             # inputs
-            "bev_data": torch.from_numpy(bev_data),                      # (H, W, C)
+            "bev_data": torch.from_numpy(bev_data),
+            "velocity_local": torch.from_numpy(velocity_local),
+            "goal_rel_local": torch.from_numpy(goal_rel_local),
+            "yaw_sin": torch.tensor(yaw_sin, dtype=torch.float32),
+            "yaw_cos": torch.tensor(yaw_cos, dtype=torch.float32),
+            "speed": torch.tensor(speed, dtype=torch.float32),
+
+            # keep raw values for debugging
             "current_location": torch.from_numpy(current_location),
             "goal_location": torch.from_numpy(goal_location),
-            "goal_rel": torch.from_numpy(goal_rel),
             "velocity": torch.from_numpy(velocity),
             "motion_heading": torch.tensor(motion_heading, dtype=torch.float32),
-            "speed": torch.tensor(speed, dtype=torch.float32),
+            "yaw_heading": torch.tensor(yaw_heading, dtype=torch.float32),
 
             # targets
             "target_speed": torch.tensor(target_speed, dtype=torch.float32),
-            "target_direction": torch.from_numpy(target_direction),
+            "target_direction_local": torch.from_numpy(target_direction_local),
+            "target_direction_mask": torch.tensor(direction_valid, dtype=torch.bool),
 
             # metadata
             "episode": episode_name,
             "ped_id": ped_name,
-            "timestep": t,
+            "timestep": timestep,
             "frame_id": torch.tensor(frame_id),
             "timestamp": torch.tensor(timestamp),
         }
@@ -432,19 +498,12 @@ class PedestrianStepDataset(Dataset):
         return sample
 
     def close(self):
-        if getattr(self, "_h5_file", None) is not None:
-            try:
-                self._h5_file.close()
-            except Exception:
-                pass
-            finally:
-                self._h5_file = None
+        if self._h5_file is not None:
+            self._h5_file.close()
+            self._h5_file = None
 
     def __del__(self):
-        try:
-            self.close()
-        except Exception:
-            pass
+        self.close()
 
 def test_dataloader():
     dataset_pth = "./datasets/pedestrian_dataset.h5"

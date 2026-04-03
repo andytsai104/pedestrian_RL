@@ -186,7 +186,7 @@ This launches the intersection scenario with aggressive vehicles and pedestrians
 
 ## Visualize BEV Observations
 
-If you want to inspect the BEV representation without dataset sampling, you can run:
+If you want to inspect the BEV representation without dataset sampling, you can start CARLA and run:
 
 ```bash
 python -m pedestrian_rl.data_collection.bev.bev_sample
@@ -209,7 +209,7 @@ This script:
 
 ## Dataset Generation
 
-To generate pedestrian state-action samples, run:
+To generate pedestrian state-action samples, start CARLA and run:
 
 ```bash
 python -m pedestrian_rl.simulation.data_sampling_sim
@@ -243,8 +243,17 @@ configs/sim_config.json
 ```
 
 ---
+## Model training
 
-## Configuration
+### Behavior Cloning model
+To train BC model from the dataset, run:
+```bash
+python -m pedestrian_rl.training.bc_training
+```
+
+---
+
+## Configurations
 
 Simulation and dataset parameters are stored in:
 
