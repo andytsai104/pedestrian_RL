@@ -271,7 +271,7 @@ class CrossroadPedestrians:
             self,
             spawn_location,
             destination: carla.Location,
-            controller_type: str = "ai",
+            controller="ai",
             max_speed: float = None,
         ):
         blueprint_library = self.world.get_blueprint_library()
@@ -298,57 +298,49 @@ class CrossroadPedestrians:
             else random.uniform(self.speed_range[0], self.speed_range[1])
         )
 
-        controller_actor = None
+        controller_ref = None
+        controller_type = None
 
-        if controller_type == "ai":
+        # ---- built-in CARLA AI walker controller ----
+        if isinstance(controller, str) and controller == "ai":
             controller_bp = blueprint_library.find("controller.ai.walker")
             controller_actor = self.world.spawn_actor(
-                controller_bp, carla.Transform(), pedestrian
+                controller_bp,
+                carla.Transform(),
+                pedestrian
             )
 
             if controller_actor is None:
                 pedestrian.destroy()
+                self.world.tick()
                 return None
 
             controller_actor.start()
             controller_actor.set_max_speed(ped_speed)
             controller_actor.go_to_location(destination)
 
-        elif controller_type == "manual":
-            # No AI controller attached.
-            # BC / custom policy will call pedestrian.apply_control(...) every tick.
-            pass
+            controller_ref = controller_actor
+            controller_type = "ai"
 
+        # ---- no AI controller attached; external code will apply_control() ----
+        elif controller is None or (isinstance(controller, str) and controller == "manual"):
+            controller_ref = None
+            controller_type = "manual"
+
+        # ---- external Python-side controller object, e.g. BC runner / RL runner ----
         else:
-            pedestrian.destroy()
-            raise ValueError(f"Unsupported controller_type: {controller_type}")
+            controller_ref = controller
+            controller_type = "external"
 
         self.ped_goal_loc[pedestrian.id] = np.array(
             [destination.x, destination.y, destination.z],
             dtype=np.float32
         )
-        self.ped_controller[pedestrian.id] = controller_actor
+        self.ped_controller[pedestrian.id] = controller_ref
         self.ped_controller_type[pedestrian.id] = controller_type
 
         return pedestrian
-    
 
-    def destroy_ped_controller(self, ped_id: int):
-        controller = self.ped_controller.get(ped_id, None)
-
-        if controller is None:
-            return False
-
-        if controller.is_alive:
-            try:
-                controller.stop()
-            except Exception:
-                pass
-            controller.destroy()
-
-        self.ped_controller[ped_id] = None
-        self.ped_controller_type[ped_id] = "manual"
-        return True
 
     def reset_pedestrians(self):
         self.ped_goal_loc = {}

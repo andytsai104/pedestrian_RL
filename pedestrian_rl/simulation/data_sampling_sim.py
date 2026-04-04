@@ -5,7 +5,7 @@ from ..utils.config_loader import load_config
 from ..utils.sim_utils import Spector, CrossroadPedestrians, AggressiveVehicles, refresh_sim, spawn_actors
 from ..data_collection.bev.bev_sample import BEVWrapper, BEVSample, BEV_test
 from ..data_collection.state_action_pair import PedestrianStateAction
-from ..data_collection.utils import DataSampler, convert_to_dataset
+from ..utils.data_utils import DataSampler, convert_to_dataset
 
 '''TODO: Increase dataset quality
 Create a logic that sample pedestrians in the certain area only or every n steps (in the intersection)
@@ -174,15 +174,15 @@ if __name__ == "__main__":
 
     try:
         # Test the functionality of data sampling
-        # visualize_sampled_data()
+        visualize_sampled_data()
 
         # Output dataset
-        data_sampling_sim(
-            output_file=True,
-            no_rendering_mode=True,
-            show_bev=False,
-            print_out_data=True   
-        )
+        # data_sampling_sim(
+        #     output_file=True,
+        #     no_rendering_mode=True,
+        #     show_bev=False,
+        #     print_out_data=True   
+        # )
     except KeyboardInterrupt:
         print("Sampling stopped by user.")
     finally:

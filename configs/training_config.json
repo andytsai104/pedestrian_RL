@@ -1,31 +1,75 @@
 {
-  "dataset_path": "datasets/pedestrian/pedestrian_dataset_light.h5",
-  "media_dir": "media/bc",
-  "checkpoint_dir": "checkpoints/bc",
-  "params": {
-    "batch_size": 64,
-    "num_epochs": 40,
-    "learning_rate": 0.0001,
-    "num_workers": 12,
-    "val_size": 0.15,
-    "test_size": 0.10,
-    "split_seed": 42,
-    "seed_list": [1, 2, 3, 4, 5],
-    "epoch_smooth_window": 0.5,
-    "iteration_smooth_window": 10,
-    "weight_decay": 0.0001,
-    "grad_clip_norm": 1.0,
-    "speed_loss_weight": 1.0,
-    "direction_loss_weight": 1.0,
-    "speed_tolerance": 0.2,
-    "direction_tolerance_deg": 15.0,
-    "goal_scale": 16.0,
-    "direction_valid_speed_eps": 0.05
+  "bc":{
+    "dataset_path": "datasets/pedestrian/pedestrian_dataset_light.h5",
+    "media_dir": "media/bc",
+    "checkpoint_dir": "checkpoints/bc",
+    "params": {
+      "batch_size": 64,
+      "num_epochs": 40,
+      "learning_rate": 0.0001,
+      "num_workers": 12,
+      "val_size": 0.15,
+      "test_size": 0.10,
+      "split_seed": 42,
+      "seed_list": [1, 2, 3, 4, 5],
+      "epoch_smooth_window": 0.5,
+      "iteration_smooth_window": 10,
+      "weight_decay": 0.0001,
+      "grad_clip_norm": 1.0,
+      "speed_loss_weight": 1.0,
+      "direction_loss_weight": 1.0,
+      "speed_tolerance": 0.2,
+      "direction_tolerance_deg": 15.0,
+      "goal_scale": 16.0,
+      "direction_valid_speed_eps": 0.05
+    }
   },
+
   "cnn": {
     "bev_feature_dim": 128,
     "hidden_dim": 256,
     "direction_dim": 2,
     "dropout": 0.1
+  },
+
+  "td3": {
+    "media_dir": "media/td3",
+    "checkpoint_dir": "checkpoints/td3",
+    "params": {
+      "num_episodes": 200,
+      "batch_size": 128,
+      "start_steps": 2000,
+      "updates_per_step": 1,
+      "save_every": 25,
+      "replay_capacity": 200000,
+      "actor_learning_rate": 0.0001,
+      "critic_learning_rate": 0.0001,
+      "actor_weight_decay": 0.0,
+      "critic_weight_decay": 0.0,
+      "gamma": 0.99,
+      "tau": 0.005,
+      "policy_noise": 0.2,
+      "noise_clip": 0.5,
+      "policy_delay": 2,
+      "exploration_speed_noise": 0.15,
+      "exploration_direction_noise": 0.2,
+      "goal_scale": 16.0,
+      "num_background_pedestrians": 59,
+      "stall_speed_threshold": 0.05,
+      "goal_reached_threshold": 1.5,
+      "episode_smooth_window": 10,
+      "loss_smooth_window": 10,
+      "rate_smooth_window": 10
+    },
+    "reward": {
+      "collision": 10.0,
+      "approach_vehicle": 1.5,
+      "goal_progress": 0.25,
+      "stall": -0.1,
+      "living": -0.01,
+      "on_driving": 0.05,
+      "off_road": -0.02,
+      "goal_reached": 2.0
+    }
   }
 }
