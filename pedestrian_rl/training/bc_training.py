@@ -5,11 +5,11 @@ from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 
-from ..data_collection.utils import PedestrianStepDataset
+from ..utils.data_utils import PedestrianStepDataset
 from ..models.bc_model import BehaviorCloningPolicy
 from ..models.cnn_encoder import CNNEncoder
 from ..utils.config_loader import load_config
-from ..utils.bc.bc_utils import (
+from ..utils.bc_utils import (
     set_seed,
     move_batch_to_device,
     save_json,
@@ -494,7 +494,7 @@ def train_one_seed(config,
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     # --- get training params' config ---
-    params_cfg = config["params"]
+    params_cfg = config["bc"]["params"]
     batch_size = params_cfg["batch_size"]
     num_epochs = params_cfg["num_epochs"]
     learning_rate = params_cfg["learning_rate"]
@@ -642,9 +642,9 @@ def train_bc_multi_seed():
 
     # --- load config ---
     config = load_config("training_config.json")
-    dataset_path = config["dataset_path"]
+    dataset_path = config["bc"]["dataset_path"]
 
-    params_cfg = config["params"]
+    params_cfg = config["bc"]["params"]
     val_ratio = params_cfg.get("val_size", 0.15)
     test_ratio = params_cfg.get("test_size", 0.10)
     train_ratio = 1.0 - val_ratio - test_ratio
