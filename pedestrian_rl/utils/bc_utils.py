@@ -6,6 +6,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import FixedLocator
 import torch
 from torch.utils.data import DataLoader, Subset
 
@@ -257,7 +258,9 @@ def plot_train_val_curves(train_values,
     ax.set_title(title, pad=6)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.xaxis.set_major_locator(FixedLocator(np.arange(0, 51, 5)))
+    ax.set_xlim(0, 50)
     ax.grid(True)
     ax.set_axisbelow(True)
     ax.legend(loc="best", frameon=False)
@@ -339,7 +342,9 @@ def plot_mean_std_curves(train_curves,
     ax.set_title(title, pad=6)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.xaxis.set_major_locator(FixedLocator(np.arange(0, 51, 5)))
+    ax.set_xlim(0, 50)
     ax.grid(True)
     ax.set_axisbelow(True)
     ax.legend(loc="best", frameon=False)
