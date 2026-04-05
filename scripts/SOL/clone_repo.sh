@@ -3,8 +3,8 @@
 #SBATCH -q class
 #SBATCH -n 1
 #SBATCH -c 4
-#SBATCH -t 0-01:00:00
-#SBATCH --mem=8G
+#SBATCH -t 0-00:05:00
+#SBATCH --mem=2G
 #SBATCH -o outputs/out/clone_repo_%j.out
 #SBATCH -e outputs/err/clone_repo_%j.err
 
