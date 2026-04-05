@@ -8,6 +8,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .cnn_encoder import CNNEncoder
+from ..utils.config_loader import load_config
+
+sim_config = load_config("sim_config.json")
+MAX_SPEED = sim_config["simluation"]["pedestrian"]["speed_range"][1]
 
 
 class Actor(nn.Module):
@@ -26,13 +30,16 @@ class Actor(nn.Module):
         action[:, 1:3]   : local direction [right, forward]
     '''
 
+    sim_config = load_config("sim_config.json")
+    MAX_SPEED = sim_config["simluation"]["pedestrian"]["speed_range"][1]
+
     def __init__(
         self,
         cnn_encoder,
         bev_feature_dim=128,
         scalar_feature_dim=7,
         hidden_dim=256,
-        max_speed=2.0,
+        max_speed=MAX_SPEED,
         dropout=0.10,
     ):
         super().__init__()
@@ -106,6 +113,9 @@ class CriticBranch(nn.Module):
         direction    -> unchanged local unit direction
     '''
 
+    sim_config = load_config("sim_config.json")
+    MAX_SPEED = sim_config["simluation"]["pedestrian"]["speed_range"][1]
+
     def __init__(
         self,
         cnn_encoder,
@@ -113,7 +123,7 @@ class CriticBranch(nn.Module):
         scalar_feature_dim=7,
         action_dim=3,
         hidden_dim=256,
-        max_speed=2.0,
+        max_speed=MAX_SPEED,
         dropout=0.10,
     ):
         super().__init__()
@@ -164,6 +174,9 @@ class CriticBranch(nn.Module):
 class TwinCritic(nn.Module):
     '''Twin critic used in TD3.'''
 
+    sim_config = load_config("sim_config.json")
+    MAX_SPEED = sim_config["simluation"]["pedestrian"]["speed_range"][1]
+
     def __init__(
         self,
         input_channels=4,
@@ -171,7 +184,7 @@ class TwinCritic(nn.Module):
         scalar_feature_dim=7,
         action_dim=3,
         hidden_dim=256,
-        max_speed=2.0,
+        max_speed=MAX_SPEED,
         dropout=0.10,
     ):
         super().__init__()
@@ -277,6 +290,8 @@ class TD3Agent:
     Action format:
         [speed, dir_right, dir_forward]
     '''
+    sim_config = load_config("sim_config.json")
+    MAX_SPEED = sim_config["simluation"]["pedestrian"]["speed_range"][1]
 
     def __init__(
         self,
@@ -285,7 +300,7 @@ class TD3Agent:
         scalar_feature_dim=7,
         hidden_dim=256,
         action_dim=3,
-        max_speed=2.0,
+        max_speed=MAX_SPEED,
         actor_learning_rate=1e-4,
         critic_learning_rate=1e-4,
         actor_weight_decay=0.0,
