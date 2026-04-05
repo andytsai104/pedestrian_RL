@@ -38,7 +38,6 @@ class PolicyRunner:
         sim_config_name="sim_config.json",
         no_rendering_mode=False,
         device="cuda",
-        goal_scale=16.0,
         num_model_peds=5,
     ):
         # --- load config ---
@@ -50,7 +49,8 @@ class PolicyRunner:
         self.max_episode_steps = sim_cfg["max_episode_steps"]
         self.warmup_ticks = sim_cfg["warmup_ticks"]
         self.max_ped_speed = sim_cfg["pedestrian"]["speed_range"][1]
-        self.goal_scale = float(goal_scale)
+        self.goal_scale = float(self.training_config["bc"]["params"]["goal_scale"])
+        self.clip_bound = float(self.training_config["bc"]["params"]["clip_bound"])
         self.num_model_peds = int(num_model_peds)
 
         if device is None or (device == "cuda" and not torch.cuda.is_available()):
@@ -261,7 +261,7 @@ class PolicyRunner:
         velocity_local = rotate_world_to_local_2d(velocity[:2], yaw_heading)
         goal_rel_local = rotate_world_to_local_2d(goal_rel_world[:2], yaw_heading)
         goal_rel_local = goal_rel_local / max(self.goal_scale, 1e-6)
-        goal_rel_local = np.clip(goal_rel_local, -2.0, 2.0).astype(np.float32)
+        goal_rel_local = np.clip(goal_rel_local, -self.clip_bound, self.clip_bound).astype(np.float32)
 
         batch = {
             "bev_data": torch.from_numpy(np.asarray(bev_data, dtype=np.float32)).unsqueeze(0).to(self.device),
@@ -386,27 +386,27 @@ class PolicyRunner:
             if self._target_reached(ped):
                 reached_any_goal = True
 
-            if peds_debug[ped_id] is not None:
-                # debug_state = peds_debug[ped_id]["debug_state"]
-                # pred_speed = peds_debug[ped_id]["pred_speed"]
-                # pred_direction_local = peds_debug[ped_id]["pred_direction_local"]
+        if peds_debug[ped_id] is not None:
+            # debug_state = peds_debug[ped_id]["debug_state"]
+            # pred_speed = peds_debug[ped_id]["pred_speed"]
+            # pred_direction_local = peds_debug[ped_id]["pred_direction_local"]
 
-                print(
-                    f"[{self.model_name}] ped_id={ped_id} | step={self.peds_step[ped_id]} "
-                    f"| episode_step={self.episode_step} | frame={frame_id}\n"
-                    f"  speed(state)         : {debug_state['speed']:.3f}\n"
-                    f"  velocity_local       : {np.round(debug_state['velocity_local'], 3)}\n"
-                    f"  pred_speed           : {pred_speed:.3f}\n"
-                    f"  pred_dir_local       : {np.round(pred_direction_local, 3)}\n"
-                    f"  goal_rel_local       : {np.round(debug_state['goal_rel_local'], 3)}\n"
-                )
+            print(
+                f"[{self.model_name}] ped_id={ped_id} | step={self.peds_step[ped_id]} "
+                f"| episode_step={self.episode_step} | frame={frame_id}\n"
+                f"  speed(state)         : {debug_state['speed']:.3f}\n"
+                f"  velocity_local       : {np.round(debug_state['velocity_local'], 3)}\n"
+                f"  pred_speed           : {pred_speed:.3f}\n"
+                f"  pred_dir_local       : {np.round(pred_direction_local, 3)}\n"
+                f"  goal_rel_local       : {np.round(debug_state['goal_rel_local'], 3)}\n"
+            )
 
-                if render_bev:
-                    image = debug_state["bev_sample"].visualize_bev()
-                    cv2.imshow(f"{self.model_name} Policy Runner BEV", image)
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == ord("q"):
-                        raise KeyboardInterrupt
+            if render_bev:
+                image = debug_state["bev_sample"].visualize_bev()
+                cv2.imshow(f"{self.model_name} Policy Runner BEV", image)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    raise KeyboardInterrupt
 
         if reached_any_goal:
             print(f"[{self.model_name} PolicyRunner] At least one target reached its goal. Resetting episode.")

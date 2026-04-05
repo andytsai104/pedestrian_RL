@@ -9,7 +9,7 @@ def main():
     config_name = "training_config.json"
     config = load_config(config_name=config_name)
     checkpoint_name = "best_model.pt"
-    checkpoint_seed_dir = os.path.join("20epochs", "seed_5")
+    checkpoint_seed_dir = os.path.join("seed_2")
     checkpoint_path = os.path.join(config["bc"]["checkpoint_dir"], checkpoint_seed_dir, checkpoint_name)
 
     model_name = "BC"

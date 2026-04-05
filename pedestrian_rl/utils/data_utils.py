@@ -393,11 +393,13 @@ class PedestrianStepDataset(Dataset):
         h5_path,
         use_goal_relative=True,
         goal_scale=16.0,
+        clip_bound=3.0,
         speed_eps=0.05,
     ):
         self.h5_path = h5_path
         self.use_goal_relative = use_goal_relative
         self.goal_scale = float(goal_scale)
+        self.clip_bound = float(clip_bound)
         self.speed_eps = float(speed_eps)
         self.index = []
         self._h5_file = None
@@ -457,7 +459,7 @@ class PedestrianStepDataset(Dataset):
         velocity_local = rotate_world_to_local_2d(velocity[:2], yaw_heading)
         goal_rel_local = rotate_world_to_local_2d(goal_world[:2], yaw_heading)
         goal_rel_local = goal_rel_local / max(self.goal_scale, 1e-6)
-        goal_rel_local = np.clip(goal_rel_local, -2.0, 2.0).astype(np.float32)
+        goal_rel_local = np.clip(goal_rel_local, -self.clip_bound, self.clip_bound).astype(np.float32)
 
         target_direction_local = rotate_world_to_local_2d(target_direction[:2], yaw_heading)
         target_direction_local = normalize_direction_2d(target_direction_local)

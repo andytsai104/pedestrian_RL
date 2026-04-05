@@ -645,15 +645,16 @@ def train_bc_multi_seed():
     dataset_path = config["bc"]["dataset_path"]
 
     params_cfg = config["bc"]["params"]
-    val_ratio = params_cfg.get("val_size", 0.15)
-    test_ratio = params_cfg.get("test_size", 0.10)
+    val_ratio = params_cfg["val_size"]
+    test_ratio = params_cfg["test_size"]
     train_ratio = 1.0 - val_ratio - test_ratio
-    split_seed = params_cfg.get("split_seed", 42)
-    seed_list = params_cfg.get("seed_list", [1, 2, 3, 4, 5])
-    epoch_smooth_window = params_cfg.get("epoch_smooth_window", 1)
-    iteration_smooth_window = params_cfg.get("iteration_smooth_window", 101)
-    goal_scale = params_cfg.get("goal_scale", 16.0)
-    direction_valid_speed_eps = params_cfg.get("direction_valid_speed_eps", 0.05)
+    split_seed = params_cfg["split_seed"]
+    seed_list = params_cfg["seed_list"]
+    epoch_smooth_window = params_cfg["epoch_smooth_window"]
+    iteration_smooth_window = params_cfg["iteration_smooth_window"]
+    goal_scale = params_cfg["goal_scale"]
+    clip_bound = params_cfg["clip_bound"]
+    direction_valid_speed_eps = params_cfg["direction_valid_speed_eps"]
 
     media_root = config["bc"].get("media_dir", os.path.join("media", "bc"))
     checkpoint_root = config["bc"].get("checkpoint_dir", os.path.join("checkpoints", "bc"))
@@ -671,6 +672,7 @@ def train_bc_multi_seed():
         h5_path=dataset_path,
         use_goal_relative=True,
         goal_scale=goal_scale,
+        clip_bound=clip_bound,
         speed_eps=direction_valid_speed_eps,
     )
     print(f"Total samples: {len(dataset)}")
