@@ -655,8 +655,10 @@ def train_bc_multi_seed():
     goal_scale = params_cfg.get("goal_scale", 16.0)
     direction_valid_speed_eps = params_cfg.get("direction_valid_speed_eps", 0.05)
 
-    media_root = config.get("media_dir", os.path.join("media", "bc"))
-    checkpoint_root = config.get("checkpoint_dir", os.path.join("checkpoints", "bc"))
+    media_root = config["bc"].get("media_dir", os.path.join("media", "bc"))
+    checkpoint_root = config["bc"].get("checkpoint_dir", os.path.join("checkpoints", "bc"))
+    # media_root = config[""]["media_dir"]
+    # checkpoint_root = config["checkpoint_dir"]
 
     os.makedirs(media_root, exist_ok=True)
     os.makedirs(checkpoint_root, exist_ok=True)

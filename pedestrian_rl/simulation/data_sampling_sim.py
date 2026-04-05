@@ -174,15 +174,15 @@ if __name__ == "__main__":
 
     try:
         # Test the functionality of data sampling
-        visualize_sampled_data()
+        # visualize_sampled_data()
 
         # Output dataset
-        # data_sampling_sim(
-        #     output_file=True,
-        #     no_rendering_mode=True,
-        #     show_bev=False,
-        #     print_out_data=True   
-        # )
+        data_sampling_sim(
+            output_file=True,
+            no_rendering_mode=True,
+            show_bev=False,
+            print_out_data=True   
+        )
     except KeyboardInterrupt:
         print("Sampling stopped by user.")
     finally:
