@@ -2,7 +2,7 @@
 __pycache__/
 # datasets/
 notes.*
-checkpoints/
+# checkpoints/
 *.pyc
 *.swp
 *.pdf

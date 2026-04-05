@@ -1,11 +1,11 @@
 {
   "bc":{
-    "dataset_path": "datasets/pedestrian/pedestrian_dataset_light.h5",
-    "media_dir": "media/bc",
-    "checkpoint_dir": "checkpoints/bc",
+    "dataset_path": "datasets/pedestrian/pedestrian_dataset.h5",
+    "media_dir": "media/bc/50epochs",
+    "checkpoint_dir": "checkpoints/bc/50epochs",
     "params": {
       "batch_size": 64,
-      "num_epochs": 40,
+      "num_epochs": 50,
       "learning_rate": 0.0001,
       "num_workers": 12,
       "val_size": 0.15,
@@ -36,7 +36,7 @@
     "media_dir": "media/td3",
     "checkpoint_dir": "checkpoints/td3",
     "params": {
-      "num_episodes": 200,
+      "num_episodes": 100,
       "batch_size": 128,
       "start_steps": 2000,
       "updates_per_step": 1,
@@ -63,13 +63,13 @@
     },
     "reward": {
       "collision": 10.0,
-      "approach_vehicle": 1.5,
+      "approach_vehicle": 2.5,
       "goal_progress": 0.25,
-      "stall": -0.1,
+      "stall": -0.2,
       "living": -0.01,
       "on_driving": 0.05,
-      "off_road": -0.02,
-      "goal_reached": 2.0
+      "off_road": 0.02,
+      "goal_reached": 1.0
     }
   }
 }

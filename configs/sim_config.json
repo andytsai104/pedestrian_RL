@@ -29,7 +29,7 @@
       "time_out": 60,
       "pedestrian":{
         "dist": 25,
-        "min_pedestrians": 15
+        "min_pedestrians": 5
       },
       "vehicle":{
         "velocity_threshold": 0.1,
@@ -48,9 +48,9 @@
   "dataset": {
     "save_path": "datasets/pedestrian",
     "file_name": "pedestrian_dataset.h5",
-    "num_episode": 10,
-    "num_ped_per_episode": 8,
-    "sample_every_n_steps": 2, 
+    "num_episode": 20,
+    "num_ped_per_episode": 12,
+    "sample_every_n_steps": 4, 
     "format": "hdf5"
   }
 }
