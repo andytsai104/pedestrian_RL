@@ -8,7 +8,7 @@
 #SBATCH --mem=8G
 #SBATCH -o outputs/out/pedestrian_RL/bc_training_%j.out
 #SBATCH -e outputs/err/pedestrian_RL/bc_training_%j.err
-#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-type=ALL
 #SBATCH --mail-user=ctsai67@asu.edu
 
 set -e
