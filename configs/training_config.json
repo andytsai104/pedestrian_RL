@@ -5,7 +5,7 @@
     "checkpoint_dir": "checkpoints/bc/50epochs",
     "params": {
       "batch_size": 128,
-      "num_epochs": 50,
+      "num_epochs": 51,
       "learning_rate": 0.0001,
       "num_workers": 8,
       "val_size": 0.15,
