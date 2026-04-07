@@ -1,10 +1,10 @@
 {
-    "loss_total": 0.06895964960649235,
-    "loss_speed": 0.06895962923321117,
-    "loss_direction": 2.0429336292193874e-08,
-    "speed_mae": 0.09941130785936345,
-    "direction_angle_deg": 0.0035455594698625592,
-    "speed_accuracy": 0.9124012366884232,
-    "direction_accuracy": 0.9893507385778083,
-    "joint_accuracy": 0.9124012366884232
+    "loss_total": 0.032685573704681795,
+    "loss_speed": 0.013395879317425826,
+    "loss_direction": 0.01928969413597985,
+    "speed_mae": 0.0341434122481317,
+    "direction_angle_deg": 3.248021107736843,
+    "speed_accuracy": 0.966616841056303,
+    "direction_accuracy": 0.9661752146515136,
+    "joint_accuracy": 0.9414549080602078
 }
