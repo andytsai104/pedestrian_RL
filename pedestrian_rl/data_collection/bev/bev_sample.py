@@ -56,6 +56,9 @@ class BEVWrapper:
         self.height = self.config["size"][1]
         self.bev_range = self.config["range"]                       # meters
         self.pixel_per_meter = self.width // self.bev_range         # pixels/m
+        self.hero_ped_size = self.config["hero_ped_size"]
+        self.other_ped_size = self.config["other_ped_size"]
+        self.step_size = self.config["step_size"]
 
 
     def get_bev_data(self):
@@ -63,10 +66,11 @@ class BEVWrapper:
         Return a dictionary of these layers, which can be stacked into a tensor later.
         '''
         self.actor_list = self.world.get_actors()
-        lane_canvas, sidewalks_canvas = self.draw_road_layers()
+        lane_canvas, sidewalks_canvas, shoulder_canvas = self.draw_road_layers()
         return {
             "lane": lane_canvas,
             "sidewalk": sidewalks_canvas,
+            "shoulder": shoulder_canvas,
             "vehicle": self.draw_actor_layers("vehicle"),
             "pedestrian": self.draw_actor_layers("walker"),
             }
@@ -114,10 +118,10 @@ class BEVWrapper:
                 # hero pedestrin (larger mark and lighter feature)
                 if actor.id == self.hero_actor.id:
                     color = 100
-                    radius = 5
+                    radius = self.hero_ped_size
                 else:    
                     color = 255
-                    radius = 3   
+                    radius = self.other_ped_size   
                 px, py = self.world_to_pixel(actor.get_location())
                 if 0 <= px < self.width and 0 <= py < self.height:
                     cv2.circle(canvas, (px, py), radius=radius, color=color, thickness=-1)
@@ -147,53 +151,55 @@ class BEVWrapper:
         return canvas
     
     def draw_road_layers(self):
-        '''
-        Draw road layers (lanes and sidewalks)
-        '''
-        lane_canvas = np.zeros((self.height, self.width), dtype=np.uint8)           # empty canvas
-        sidewalks_canvas = np.zeros((self.height, self.width), dtype=np.uint8)      # empty canvas
+        lane_canvas = np.zeros((self.height, self.width), dtype=np.uint8)
+        sidewalk_canvas = np.zeros((self.height, self.width), dtype=np.uint8)
+        shoulder_canvas = np.zeros((self.height, self.width), dtype=np.uint8)
 
-        # Define the range and step sizes for querying the map
         search_range = self.bev_range / 2
-        step_size = 0.25        # sample every 0.25m -> adjust for higher resolution (but might require more computation)
-
-        # Fill up the narrow between step sieze and pixel siezs to avoid holes on canvas
-        brush_size = int(step_size * self.pixel_per_meter) + 1
-
+        brush_size = int(self.step_size * self.pixel_per_meter) + 1
 
         hero_transform = self.hero_actor.get_transform()
-        # Loop through search area and determine lane type 
-        for x in np.arange(-search_range, search_range, step_size):
-            for y in np.arange(-search_range, search_range, step_size):
-                # Get the world location of the target point relative to the hero pedestrian
+
+        # Loop through the bev area
+        for x in np.arange(-search_range, search_range, self.step_size):
+            for y in np.arange(-search_range, search_range, self.step_size):
                 target_vector = carla.Vector3D(x, y, 0)
                 world_location = hero_transform.transform(target_vector)
-                wp = self.world.get_map().get_waypoint(world_location, project_to_road=False, lane_type=carla.LaneType.Any)
 
-                if wp:
-                    # Convert world location to pixel on the canvas
-                    px, py = self.world_to_pixel(world_location)
-                    lane_type = wp.lane_type
+                wp = self.world.get_map().get_waypoint(
+                    world_location,
+                    project_to_road=False,
+                    lane_type=carla.LaneType.Any
+                )
 
-                    # Determine which canvas to draw
-                    if 0 <= px < self.width and 0 <= py < self.height:
-                        # Draw Drivable lanes
-                        if lane_type == carla.LaneType.Driving:
-                            cv2.rectangle(lane_canvas,
-                                            (px - brush_size//2, py - brush_size//2),
-                                            (px + brush_size//2, py + brush_size//2),
-                                            color=255,
-                                            thickness=-1)
+                if wp is None:
+                    continue
 
-                        # Draw Sidewalks and Sholders
-                        elif (lane_type == carla.LaneType.Sidewalk) or (lane_type == carla.LaneType.Shoulder):
-                            cv2.rectangle(sidewalks_canvas,
-                                            (px - brush_size//2, py - brush_size//2),
-                                            (px + brush_size//2, py + brush_size//2),
-                                            color=255,
-                                            thickness=-1)
+                px, py = self.world_to_pixel(world_location)
+                lane_type = wp.lane_type
 
-        return lane_canvas, sidewalks_canvas
+                if not (0 <= px < self.width and 0 <= py < self.height):
+                    continue
+                
+                # decide which layer to draw on
+                if lane_type == carla.LaneType.Driving:
+                    canvas = lane_canvas
+                elif lane_type == carla.LaneType.Sidewalk:
+                    canvas = sidewalk_canvas
+                elif lane_type == carla.LaneType.Shoulder:
+                    canvas = shoulder_canvas
+                else:
+                    continue
+
+                cv2.rectangle(
+                    canvas,
+                    (px - brush_size // 2, py - brush_size // 2),
+                    (px + brush_size // 2, py + brush_size // 2),
+                    color=255,
+                    thickness=-1
+                )
+
+        return lane_canvas, sidewalk_canvas, shoulder_canvas
     
     def show_target_pedestrian(self):
         '''
@@ -262,8 +268,9 @@ class BEVSample:
         self.feature_tensor = np.stack([
             layers["lane"],
             layers["sidewalk"], 
+            layers["shoulder"],
             layers["vehicle"], 
-            layers["pedestrian"]
+            layers["pedestrian"],
         ], axis=-1)
         
         return self.feature_tensor
@@ -288,6 +295,7 @@ class BEVSample:
         image[layers["lane"] > 0] = (40, 40, 40)
         image[layers["sidewalk"] > 0] = (120, 120, 120)
         image[layers["vehicle"] > 0] = (0, 0, 255)
+        image[layers["shoulder"] > 0] = (40, 0, 40)
         image[layers["pedestrian"] == 255] = (255, 0, 0)
         image[layers["pedestrian"] == 100] = (0, 255, 0)
         
