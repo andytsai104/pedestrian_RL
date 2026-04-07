@@ -530,7 +530,7 @@ def train_one_seed(config,
         dataset=val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num=num_workers,
+        num_workers=num_workers,
         persistent_workers=persistent_workers,
         prefetch_factor=prefetch_factor,
     )
