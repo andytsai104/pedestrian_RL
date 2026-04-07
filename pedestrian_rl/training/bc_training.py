@@ -108,14 +108,16 @@ def build_model(config, device):
     bev_feature_dim = config["cnn"]["bev_feature_dim"]
     hidden_dim = config["cnn"]["hidden_dim"]
     direction_dim = config["cnn"]["direction_dim"]
+    dropout = config["bc"]["params"]["dropout"]
 
-    cnn_encoder = CNNEncoder(input_channels=4, feature_dim=bev_feature_dim)
+    cnn_encoder = CNNEncoder(input_channels=5, feature_dim=bev_feature_dim)
     model = BehaviorCloningPolicy(
         cnn_encoder=cnn_encoder,
         bev_feature_dim=bev_feature_dim,
-        scalar_feature_dim=7,
+        # scalar_feature_dim=7,
         hidden_dim=hidden_dim,
         direction_dim=direction_dim,
+        dropout=dropout
     ).to(device)
 
     return model
@@ -655,6 +657,7 @@ def train_bc_multi_seed():
     goal_scale = params_cfg["goal_scale"]
     clip_bound = params_cfg["clip_bound"]
     direction_valid_speed_eps = params_cfg["direction_valid_speed_eps"]
+    future_steps = params_cfg["future_steps"]
 
     media_root = config["bc"].get("media_dir", os.path.join("media", "bc"))
     checkpoint_root = config["bc"].get("checkpoint_dir", os.path.join("checkpoints", "bc"))
@@ -674,6 +677,7 @@ def train_bc_multi_seed():
         goal_scale=goal_scale,
         clip_bound=clip_bound,
         speed_eps=direction_valid_speed_eps,
+        future_steps=future_steps
     )
     print(f"Total samples: {len(dataset)}")
 

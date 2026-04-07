@@ -557,7 +557,7 @@ def build_td3_agent(training_config, max_speed, device='cuda'):
     td3_params = training_config['td3']['params']
 
     agent = TD3Agent(
-        input_channels=4,
+        input_channels=5,
         bev_feature_dim=cnn_cfg['bev_feature_dim'],
         scalar_feature_dim=7,
         hidden_dim=cnn_cfg['hidden_dim'],
@@ -575,7 +575,7 @@ def build_td3_agent(training_config, max_speed, device='cuda'):
         exploration_speed_noise=td3_params['exploration_speed_noise'],
         exploration_direction_noise=td3_params['exploration_direction_noise'],
         replay_capacity=td3_params['replay_capacity'],
-        dropout=cnn_cfg['dropout'],
+        dropout=td3_params['dropout'],
         device=device,
     )
 
