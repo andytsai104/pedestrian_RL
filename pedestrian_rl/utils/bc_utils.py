@@ -67,7 +67,7 @@ def build_dataloader(dataset, batch_size, shuffle, num_workers):
 
 
 
-# Make sure the episodes are not spliting
+# --- Make sure the episodes are not spliting ---
 def _compute_split_counts(total_count, train_ratio, val_ratio, test_ratio):
     '''Compute split counts while keeping the total exact.'''
     train_count = int(total_count * train_ratio)
@@ -156,6 +156,37 @@ def split_dataset_by_episode(dataset, train_ratio, val_ratio, test_ratio, seed=4
 
 
 
+
+# --- Plotting functions ---
+def set_dynamic_x_axis(ax, num_points, use_step_axis=False):
+    """
+    Dynamic x-axis:
+    - if max <= 10  -> ticks every 1
+    - if max > 10   -> ticks every 5
+    """
+    if num_points <= 0:
+        return
+
+    if use_step_axis:
+        x_max = num_points / 1000.0
+        xlabel = r"Step ($\times 10^3$)"
+    else:
+        x_max = float(num_points)
+        xlabel = "Epoch"
+
+    if x_max <= 10:
+        tick_step = 1
+        x_limit = np.ceil(x_max)
+    else:
+        tick_step = 5
+        x_limit = np.ceil(x_max / tick_step) * tick_step
+
+    ticks = np.arange(0, x_limit + 1e-6, tick_step)
+
+    ax.set_xlim(0, x_limit)
+    ax.set_xticks(ticks)
+    ax.set_xlabel(xlabel)
+
 def smooth_curve(values, window=1):
     """Smooth one curve with moving average without boundary shrinkage."""
     values = np.asarray(values, dtype=np.float32)
@@ -223,22 +254,18 @@ def plot_train_val_curves(train_values,
                           use_step_axis=False,
                           show_raw=True,
                           ylim=None):
-    """Plot one train / validation curve."""
     set_plot_style()
     fig, ax = plt.subplots(figsize=(6.6, 4.1))
 
     train_values = np.asarray(train_values, dtype=np.float32)
     val_values = np.asarray(val_values, dtype=np.float32)
 
-    x_train = np.arange(1, len(train_values) + 1, dtype=np.float32)
-    x_val = np.arange(1, len(val_values) + 1, dtype=np.float32)
+    x_train = np.arange(len(train_values), dtype=np.float32)
+    x_val = np.arange(len(val_values), dtype=np.float32)
 
     if use_step_axis:
         x_train = x_train / 1000.0
         x_val = x_val / 1000.0
-        xlabel = r"Step ($\times 10^3$)"
-    else:
-        xlabel = "Epoch"
 
     train_curve = smooth_curve(train_values, smooth_window)
     val_curve = smooth_curve(val_values, smooth_window)
@@ -256,14 +283,12 @@ def plot_train_val_curves(train_values,
         ax.plot(x_val, val_curve, color=val_color, label="Validation")
 
     ax.set_title(title, pad=6)
-    ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.xaxis.set_major_locator(FixedLocator(np.arange(0, 51, 5)))
-    ax.set_xlim(0, 50)
     ax.grid(True)
     ax.set_axisbelow(True)
     ax.legend(loc="best", frameon=False)
+    # Set dynamic x-axis
+    set_dynamic_x_axis(ax, len(train_values), use_step_axis=use_step_axis)
 
     if ylim is not None:
         ax.set_ylim(ylim)
@@ -296,7 +321,7 @@ def plot_mean_std_curves(train_curves,
     train_mean = smooth_curve(train_stacked.mean(axis=0), smooth_window)
     train_std = smooth_curve(train_stacked.std(axis=0), smooth_window)
 
-    x_train = np.arange(1, len(train_mean) + 1, dtype=np.float32)
+    x_train = np.arange(len(train_mean), dtype=np.float32)
 
     if use_step_axis:
         x_train = x_train / 1000.0
@@ -325,7 +350,7 @@ def plot_mean_std_curves(train_curves,
 
         val_mean = smooth_curve(val_stacked.mean(axis=0), smooth_window)
         val_std = smooth_curve(val_stacked.std(axis=0), smooth_window)
-        x_val = np.arange(1, len(val_mean) + 1, dtype=np.float32)
+        x_val = np.arange(len(val_mean), dtype=np.float32)
 
         if use_step_axis:
             x_val = x_val / 1000.0
@@ -342,12 +367,11 @@ def plot_mean_std_curves(train_curves,
     ax.set_title(title, pad=6)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.xaxis.set_major_locator(FixedLocator(np.arange(0, 51, 5)))
-    ax.set_xlim(0, 50)
     ax.grid(True)
     ax.set_axisbelow(True)
     ax.legend(loc="best", frameon=False)
+    # Set dynamic x-axis
+    set_dynamic_x_axis(ax, len(train_mean), use_step_axis=use_step_axis)
 
     if ylim is not None:
         ax.set_ylim(ylim)

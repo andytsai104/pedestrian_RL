@@ -62,6 +62,7 @@ class PedestrianRLEnv:
         self.num_background_pedestrians = int(td3_params["num_background_pedestrians"])
         self.stall_speed_threshold = float(td3_params["stall_speed_threshold"])
         self.goal_reached_threshold = float(td3_params["goal_reached_threshold"])
+        self.clip_bound = float(td3_params["clip_bound"])
         self.render_bev = bool(render_bev)
         self.device = device
 
@@ -229,7 +230,7 @@ class PedestrianRLEnv:
         velocity_local = rotate_world_to_local_2d(velocity[:2], yaw_heading).astype(np.float32)
         goal_rel_local = rotate_world_to_local_2d(goal_rel_world[:2], yaw_heading)
         goal_rel_local = goal_rel_local / max(self.goal_scale, 1e-6)
-        goal_rel_local = np.clip(goal_rel_local, -2.0, 2.0).astype(np.float32)
+        goal_rel_local = np.clip(goal_rel_local, -self.clip_bound, self.clip_bound).astype(np.float32)
 
         obs = {
             "bev_data": bev_data,

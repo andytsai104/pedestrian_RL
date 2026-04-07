@@ -169,17 +169,22 @@ class Spector:
             wp = self.world_map.get_waypoint(loc_point, project_to_road=False, lane_type=carla.LaneType.Any)
             if wp:
                 lane_type = wp.lane_type
-                color = LANE_COLORS.get(lane_type, carla.Color(255, 255, 255))
+                # if (lane_type == carla.LaneType.Driving) or (lane_type == carla.LaneType.Sidewalk) or (lane_type == carla.LaneType.Shoulder):
+                #     pass
+                # else:
+                #     print(lane_type)
+                color = LANE_COLORS.get(lane_type, None)
 
                 location = carla.Location(x=loc_point.x, y=loc_point.y, z=5.0)
                 location.z = 0.5
-
-                self.world.debug.draw_point(location, size = mark_size, color = color, life_time = -1)
+                if color is not None:
+                    self.world.debug.draw_point(location, size = mark_size, color = color, life_time = -1)
 
 
     def show_intersection_info(self):
         self.set_spector()
         # Draw map info
+        # self.show_lane_types()
         self.show_waypoints()
         self.show_vehicles_spawn_points()
         self.show_ped_spawn_points(ped_num=1000)
@@ -390,7 +395,8 @@ class AggressiveVehicles:
                  dist_to_intersection=config["dist_to_intersection"],
                  speed_diff=config["speed_diff"],
                  dist_lead=config["dist_lead"], 
-                 wp_step=config["wp_step"]
+                 wp_step=config["wp_step"],
+                 signal_ignoring_rate=config["signal_ignoring_rate"]
         ):
         
         self.client = client
@@ -402,6 +408,7 @@ class AggressiveVehicles:
         self.speed_diff = speed_diff
         self.dist_lead = dist_lead
         self.wp_step = wp_step
+        self.signal_ignoring_rate = signal_ignoring_rate
 
     def aggressive_vehicles_spawn(self):
         # Traffic manager
@@ -442,8 +449,8 @@ class AggressiveVehicles:
         for v in vehicles:
             tm.vehicle_percentage_speed_difference(v, self.speed_diff)
             tm.distance_to_leading_vehicle(v, self.dist_lead)
-            tm.ignore_lights_percentage(v, 100)             # ignore traffic lights 100%
-            tm.ignore_signs_percentage(v, 100)              # ignore traffic signs 100%
+            tm.ignore_lights_percentage(v, self.signal_ignoring_rate)             # ignore traffic lights
+            tm.ignore_signs_percentage(v, self.signal_ignoring_rate)              # ignore traffic signs
 
 
 def cleanup_simulation(world):
@@ -539,6 +546,8 @@ def spawn_actors(world,
                  aggressive_vehicles: AggressiveVehicles,
                  crossroad_pedestrians: CrossroadPedestrians,
     ):
+    config_name = "sim_config.json"
+    config = load_config(config_name=config_name)
     # Clean up world
     cleanup_simulation(world)
     crossroad_pedestrians.reset_pedestrians()
@@ -550,5 +559,5 @@ def spawn_actors(world,
     crossroad_pedestrians.pedestrians_spawn()
 
     # Warmup world
-    for _ in range(3):
+    for _ in range(config["simulation"]["warmup_ticks"]):
         world.tick()

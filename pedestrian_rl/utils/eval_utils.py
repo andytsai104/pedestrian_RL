@@ -128,18 +128,21 @@ class PolicyRunner:
         """Build up prediction model from optimal checkpoint."""
         bev_feature_dim = 128
         hidden_dim = 256
+        direction_dim = 2
+        dropout = 0.0
 
         if self.training_config is not None:
             bev_feature_dim = self.training_config["cnn"]["bev_feature_dim"]
             hidden_dim = self.training_config["cnn"]["hidden_dim"]
+            direction_dim = self.training_config["cnn"]["direction_dim"]
+            dropout = self.training_config["bc"]["params"]["dropout"]
 
-        cnn_encoder = CNNEncoder(input_channels=4, feature_dim=bev_feature_dim)
+        cnn_encoder = CNNEncoder(input_channels=5, feature_dim=bev_feature_dim)
         self.model = self.model_class(
             cnn_encoder=cnn_encoder,
             bev_feature_dim=bev_feature_dim,
-            scalar_feature_dim=7,
             hidden_dim=hidden_dim,
-            direction_dim=2,
+            direction_dim=direction_dim,
             dropout=0.0,
         ).to(self.device)
 
@@ -376,8 +379,8 @@ class PolicyRunner:
             self._apply_control(ped, pred_speed, pred_direction_world, jump=False)
             self.peds_step[ped_id] = self.peds_step.get(ped_id, 0) + 1
 
-            if peds_debug[ped_id] is None:
-                peds_debug[ped_id] = {
+            
+            peds_debug[ped_id] = {
                     "debug_state": debug_state,
                     "pred_speed": pred_speed,
                     "pred_direction_local": pred_direction_local,
@@ -398,6 +401,7 @@ class PolicyRunner:
                 f"  velocity_local       : {np.round(debug_state['velocity_local'], 3)}\n"
                 f"  pred_speed           : {pred_speed:.3f}\n"
                 f"  pred_dir_local       : {np.round(pred_direction_local, 3)}\n"
+                f"  pred_dir_world       : {np.round(pred_direction_world, 3)}\n"
                 f"  goal_rel_local       : {np.round(debug_state['goal_rel_local'], 3)}\n"
             )
 
