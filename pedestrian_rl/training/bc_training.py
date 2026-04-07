@@ -489,7 +489,6 @@ def train_one_seed(config,
                    checkpoint_root,
                    device):
     """Train one seed and save all outputs."""
-    set_seed(train_seed)
 
     media_dir, checkpoint_dir = get_seed_dirs(media_root, checkpoint_root, train_seed)
     os.makedirs(media_dir, exist_ok=True)
@@ -510,10 +509,39 @@ def train_one_seed(config,
     speed_loss_weight = params_cfg.get("speed_loss_weight", 1.0)
     direction_loss_weight = params_cfg.get("direction_loss_weight", 1.0)
 
+    runtime_cfg = config.get("runtime", {})
+    reproducible_mode = runtime_cfg.get("reproducible_mode", True)
+    persistent_workers = runtime_cfg.get("persistent_workers", False)
+    prefetch_factor = runtime_cfg.get("prefetch_factor", 2)
+
+    # set random seed
+    set_seed(train_seed, reproducible_mode=reproducible_mode)
+
     # --- load dataset ---
-    train_loader = build_dataloader(train_dataset, batch_size, True, num_workers)
-    val_loader = build_dataloader(val_dataset, batch_size, False, num_workers)
-    test_loader = build_dataloader(test_dataset, batch_size, False, num_workers)
+    train_loader = build_dataloader(
+        dataset=train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        persistent_workers=persistent_workers,
+        prefetch_factor=prefetch_factor,
+    )
+    val_loader = build_dataloader(
+        dataset=val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num=num_workers,
+        persistent_workers=persistent_workers,
+        prefetch_factor=prefetch_factor,
+    )
+    test_loader = build_dataloader(
+        dataset=test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        persistent_workers=persistent_workers,
+        prefetch_factor=prefetch_factor,
+    )
 
     # --- build model and define optimizer ---
     model = build_model(config, device)

@@ -11,17 +11,19 @@ import torch
 from torch.utils.data import DataLoader, Subset
 
 
-def set_seed(seed: int = 42):
-    """Set random seeds for reproducible training."""
+def set_seed(seed: int = 42, reproducible_mode: bool = True):
+    """Set random seeds and runtime mode."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    # force cuda use deterministic algorithms
+
+    # Make cudnn none deterministic when tuning and deterministic when finalizing
     if hasattr(torch.backends, "cudnn"):
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
+        torch.backends.cudnn.deterministic = bool(reproducible_mode)
+        torch.backends.cudnn.benchmark = not bool(reproducible_mode)
 
 
 def move_batch_to_device(batch, device):
@@ -55,15 +57,28 @@ def save_checkpoint(model, optimizer, save_path, epoch, extra_info=None):
     print(f"Saved: {save_path}")
 
 
-def build_dataloader(dataset, batch_size, shuffle, num_workers):
+def build_dataloader(
+    dataset,
+    batch_size,
+    shuffle,
+    num_workers,
+    persistent_workers=False,
+    prefetch_factor=2,
+    ):
     """Create one dataloader."""
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
-        pin_memory=torch.cuda.is_available(),
-    )
+    dataloader_kwargs = {
+        "dataset": dataset,
+        "batch_size": batch_size,
+        "shuffle": shuffle,
+        "num_workers": num_workers,
+        "pin_memory": torch.cuda.is_available(),
+    }
+
+    if num_workers > 0:
+        dataloader_kwargs["persistent_workers"] = persistent_workers
+        dataloader_kwargs["prefetch_factor"] = prefetch_factor
+
+    return DataLoader(**dataloader_kwargs)
 
 
 
