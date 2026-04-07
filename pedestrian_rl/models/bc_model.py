@@ -2,17 +2,55 @@ import torch
 import torch.nn as nn
 
 
+class FiLMGenerator(nn.Module):
+    '''
+    Generate FiLM parameters from conditioning features.
+
+    Output:
+        gamma: multiplicative scale, initialized near identity
+        beta : additive shift, initialized near zero
+    '''
+    def __init__(self, conditioning_dim: int, feature_dim: int):
+        super().__init__()
+
+        self.net = nn.Sequential(
+            nn.Linear(conditioning_dim, conditioning_dim),
+            nn.LayerNorm(conditioning_dim),
+            nn.SiLU(),
+            nn.Linear(conditioning_dim, feature_dim * 2),
+        )
+
+        # Start close to identity FiLM:
+        # gamma ~= 1, beta ~= 0
+        nn.init.zeros_(self.net[-1].weight)
+        nn.init.zeros_(self.net[-1].bias)
+
+        self.feature_dim = feature_dim
+
+    def forward(self, conditioning_feature):
+        gamma_beta = self.net(conditioning_feature)
+        gamma_raw, beta = torch.chunk(gamma_beta, 2, dim=-1)
+
+        gamma = 1.0 + gamma_raw
+        return gamma, beta
+
+
 class BehaviorCloningPolicy(nn.Module):
     '''
-    BC policy using BEV features + local-frame scalar features.
+    BC policy using BEV features + FiLM-conditioned scalar fusion.
 
-    Scalar inputs:
-        velocity_local   : (B, 2)  -> [right, forward]
-        speed            : (B, 1)
-        yaw_sin          : (B, 1)
-        yaw_cos          : (B, 1)
-        goal_rel_local   : (B, 2)  -> [right, forward]
-    
+    Inputs:
+        bev_data         : (B, H, W, C) or (B, C, H, W)
+        velocity_local   : (B, 2)
+        speed            : (B,)
+        yaw_sin          : (B,)
+        yaw_cos          : (B,)
+        goal_rel_local   : (B, 2)
+
+    Outputs:
+        pred_speed       : (B, 1)
+        pred_direction   : (B, 2)
+
     Model Structures:
         LayerNorm(): ensure no data loss during different scales
         SiLU(): ensuure smooth actions output with all gradient
@@ -23,17 +61,44 @@ class BehaviorCloningPolicy(nn.Module):
         self,
         cnn_encoder,
         bev_feature_dim=128,
-        scalar_feature_dim=7,
         hidden_dim=256,
         direction_dim=2,
         dropout=0.10,
+        state_feature_dim=64,
+        goal_feature_dim=64,
     ):
         super().__init__()
 
         self.cnn_encoder = cnn_encoder
 
+        # velocity_local(2) + speed(1) + yaw_sin(1) + yaw_cos(1) = 5
+        self.state_encoder = nn.Sequential(
+            nn.Linear(5, state_feature_dim),
+            nn.LayerNorm(state_feature_dim),
+            nn.SiLU(),
+            nn.Linear(state_feature_dim, state_feature_dim),
+            nn.SiLU(),
+        )
+
+        # goal_rel_local(2)
+        self.goal_encoder = nn.Sequential(
+            nn.Linear(2, goal_feature_dim),
+            nn.LayerNorm(goal_feature_dim),
+            nn.SiLU(),
+            nn.Linear(goal_feature_dim, goal_feature_dim),
+            nn.SiLU(),
+        )
+
+        conditioning_dim = state_feature_dim + goal_feature_dim
+        self.film = FiLMGenerator(
+            conditioning_dim=conditioning_dim,
+            feature_dim=bev_feature_dim,
+        )
+
+        fusion_dim = bev_feature_dim + state_feature_dim + goal_feature_dim
+
         self.trunk = nn.Sequential(
-            nn.Linear(bev_feature_dim + scalar_feature_dim, hidden_dim),
+            nn.Linear(fusion_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
             nn.SiLU(),
             nn.Dropout(dropout),
@@ -69,14 +134,26 @@ class BehaviorCloningPolicy(nn.Module):
         yaw_cos = data["yaw_cos"].unsqueeze(-1)
         goal_rel_local = data["goal_rel_local"]
 
+        # ----- branch encoders -----
         bev_feature = self.cnn_encoder(bev_data)
 
-        scalar_feature = torch.cat(
-            [velocity_local, speed, yaw_sin, yaw_cos, goal_rel_local],
+        state_input = torch.cat(
+            [velocity_local, speed, yaw_sin, yaw_cos],
             dim=-1,
         )
+        state_feature = self.state_encoder(state_input)
+        goal_feature = self.goal_encoder(goal_rel_local)
 
-        fused_feature = torch.cat([bev_feature, scalar_feature], dim=-1)
+        # ----- FiLM conditioning on BEV -----
+        conditioning_feature = torch.cat([state_feature, goal_feature], dim=-1)
+        gamma, beta = self.film(conditioning_feature)
+        bev_feature = gamma * bev_feature + beta
+
+        # ----- fusion -----
+        fused_feature = torch.cat(
+            [bev_feature, state_feature, goal_feature],
+            dim=-1,
+        )
         latent_feature = self.trunk(fused_feature)
 
         pred_speed = self.speed_head(latent_feature)

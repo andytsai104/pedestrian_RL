@@ -50,7 +50,7 @@ class CNNEncoder(nn.Module):
     Output:
         (B, feature_dim)
     """
-    def __init__(self, input_channels=4, feature_dim=128):
+    def __init__(self, input_channels=5, feature_dim=128):
         super().__init__()
 
         # stem: 160 -> 80

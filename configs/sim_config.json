@@ -2,7 +2,7 @@
   "simulation": {
     "town": "Town10HD",
     "fixed_delta_seconds": 0.05,
-    "max_episode_steps": 400,
+    "max_episode_steps": 500,
     "warmup_ticks": 10,
 
     "intersection": {
@@ -13,23 +13,24 @@
     },
 
     "vehicle": {
-      "veh_num": 20,
-      "dist_to_intersection": 50,
-      "speed_diff": 50,
-      "dist_lead": 2.0,
-      "wp_step": 2    
+      "veh_num": 40,
+      "dist_to_intersection": 80,
+      "speed_diff": 35,
+      "dist_lead": 4,
+      "wp_step": 5,
+      "signal_ignoring_rate": 100    
     },
 
     "pedestrian":{
-      "ped_num": 60,
-      "speed_range": [1.5, 3]
+      "ped_num": 50,
+      "speed_range": [0.9, 1.2]
     },
 
     "stuck_detection":{
       "time_out": 60,
       "pedestrian":{
         "dist": 25,
-        "min_pedestrians": 5
+        "min_pedestrians": 8
       },
       "vehicle":{
         "velocity_threshold": 0.1,
@@ -42,7 +43,10 @@
 
   "bev": {
     "size": [160, 160],
-    "range": 16
+    "range": 20,
+    "hero_ped_size": 4,
+    "other_ped_size": 3,
+    "step_size": 0.4
   },
 
   "dataset": {

@@ -9,7 +9,7 @@ def main():
     config_name = "training_config.json"
     config = load_config(config_name=config_name)
     checkpoint_name = "best_model.pt"
-    checkpoint_seed_dir = os.path.join("seed_2")
+    checkpoint_seed_dir = os.path.join("seed_1")
     checkpoint_path = os.path.join(config["bc"]["checkpoint_dir"], checkpoint_seed_dir, checkpoint_name)
 
     model_name = "BC"
@@ -17,6 +17,7 @@ def main():
         model_class=BehaviorCloningPolicy,
         model_name=model_name,
         checkpoint_path=checkpoint_path,
+        num_model_peds=10
     )
 
     try:

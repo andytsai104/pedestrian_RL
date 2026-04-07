@@ -11,7 +11,7 @@ from .cnn_encoder import CNNEncoder
 from ..utils.config_loader import load_config
 
 sim_config = load_config("sim_config.json")
-MAX_SPEED = sim_config["simluation"]["pedestrian"]["speed_range"][1]
+MAX_SPEED = sim_config["simulation"]["pedestrian"]["speed_range"][1]
 
 
 class Actor(nn.Module):
@@ -31,7 +31,7 @@ class Actor(nn.Module):
     '''
 
     sim_config = load_config("sim_config.json")
-    MAX_SPEED = sim_config["simluation"]["pedestrian"]["speed_range"][1]
+    MAX_SPEED = sim_config["simulation"]["pedestrian"]["speed_range"][1]
 
     def __init__(
         self,
@@ -114,7 +114,7 @@ class CriticBranch(nn.Module):
     '''
 
     sim_config = load_config("sim_config.json")
-    MAX_SPEED = sim_config["simluation"]["pedestrian"]["speed_range"][1]
+    MAX_SPEED = sim_config["simulation"]["pedestrian"]["speed_range"][1]
 
     def __init__(
         self,
@@ -175,11 +175,11 @@ class TwinCritic(nn.Module):
     '''Twin critic used in TD3.'''
 
     sim_config = load_config("sim_config.json")
-    MAX_SPEED = sim_config["simluation"]["pedestrian"]["speed_range"][1]
+    MAX_SPEED = sim_config["simulation"]["pedestrian"]["speed_range"][1]
 
     def __init__(
         self,
-        input_channels=4,
+        input_channels=5,
         bev_feature_dim=128,
         scalar_feature_dim=7,
         action_dim=3,
@@ -291,11 +291,11 @@ class TD3Agent:
         [speed, dir_right, dir_forward]
     '''
     sim_config = load_config("sim_config.json")
-    MAX_SPEED = sim_config["simluation"]["pedestrian"]["speed_range"][1]
+    MAX_SPEED = sim_config["simulation"]["pedestrian"]["speed_range"][1]
 
     def __init__(
         self,
-        input_channels=4,
+        input_channels=5,
         bev_feature_dim=128,
         scalar_feature_dim=7,
         hidden_dim=256,
