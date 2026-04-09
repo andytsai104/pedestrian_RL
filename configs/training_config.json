@@ -57,7 +57,7 @@
       "exploration_direction_noise": 0.2,
       "goal_scale": 48.0,
       "clip_bound": 3.0,
-      "num_background_pedestrians": 59,
+      "num_background_pedestrians": 39,
       "stall_speed_threshold": 0.05,
       "goal_reached_threshold": 1.5,
       "episode_smooth_window": 10,

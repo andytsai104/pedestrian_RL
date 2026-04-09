@@ -5,8 +5,6 @@ import json
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
-from matplotlib.ticker import FixedLocator
 import torch
 from torch.utils.data import DataLoader, Subset
 
