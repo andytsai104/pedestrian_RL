@@ -227,6 +227,8 @@ def train_bc_multi_seed():
     iteration_smooth_window = params_cfg["iteration_smooth_window"]
     goal_scale = params_cfg["goal_scale"]
     clip_bound = params_cfg["clip_bound"]
+    future_steps = params_cfg["future_steps"]
+    direction_valid_speed_eps = params_cfg["direction_valid_speed_eps"]
 
 
     media_root = config["bc"].get("media_dir", os.path.join("media", "bc"))
@@ -246,6 +248,8 @@ def train_bc_multi_seed():
         use_goal_relative=True,
         goal_scale=goal_scale,
         clip_bound=clip_bound,
+        speed_eps=direction_valid_speed_eps,
+        future_steps=future_steps
     )
     print(f"Total samples: {len(dataset)}")
 

@@ -24,8 +24,8 @@
     },
 
     "pedestrian":{
-      "ped_num": 60,
-      "speed_range": [0.9, 1.2]
+      "ped_num": 45,
+      "speed_range": [1.5, 2.0]
     },
 
     "stuck_detection":{

@@ -206,7 +206,11 @@ def data_sampling_sim(output_file=True, no_rendering_mode=True, show_bev=False, 
                 )
 
             if (show_bev) and (ped_index==1):
-                image = bev_sample.visualize_bev()
+                try: 
+                    image = bev_sample.visualize_bev()
+                except RuntimeError as exc:
+                    respawn_same_episode(reason=exc)
+                    continue
                 cv2.imshow("BEV Debug Tool", image)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     return

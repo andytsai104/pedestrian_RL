@@ -370,6 +370,47 @@ def convert_to_dataset(episode_data: list, output_path, episode_idx=None):
     print(f"[convert_to_dataset] Saved {len(episode_data)} samples to {output_path}::{group_name}")
 
 
+def normalize_direction_2d(direction_xy: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+    norm = float(np.linalg.norm(direction_xy))
+    if norm < eps:
+        return np.zeros(2, dtype=np.float32)
+    return (direction_xy / norm).astype(np.float32)
+
+
+def compute_future_direction_and_speed(
+        current_location: np.ndarray,
+        future_location: np.ndarray,
+        current_yaw_heading: float,
+        current_timestamp: float,
+        future_timestamp: float,
+        eps: float = 1e-6,
+    ):
+    """
+    Compute future realized motion direction from t -> t+k.
+
+    Returns:
+        future_direction_local: local-frame unit vector [right, forward]
+        future_speed: average realized speed magnitude over the horizon
+    """
+    future_disp_world = np.asarray(
+        future_location[:2] - current_location[:2],
+        dtype=np.float32,
+    )
+    future_dt = float(future_timestamp - current_timestamp)
+
+    if future_dt <= eps:
+        return np.zeros(2, dtype=np.float32), 0.0
+
+    future_speed = float(np.linalg.norm(future_disp_world) / future_dt)
+
+    future_direction_local = rotate_world_to_local_2d(
+        future_disp_world,
+        current_yaw_heading,
+    )
+    future_direction_local = normalize_direction_2d(future_direction_local, eps=eps)
+
+    return future_direction_local, future_speed
+
 class PedestrianStepDataset(Dataset):
     '''
     One sample = one pedestrian at one timestep.
@@ -397,12 +438,16 @@ class PedestrianStepDataset(Dataset):
         use_goal_relative=True,
         goal_scale=16.0,
         clip_bound=3.0,
+        speed_eps=0.05,
+        future_steps=1,
     ):
         self.h5_path = h5_path
         self.use_goal_relative = use_goal_relative
         self.goal_scale = float(goal_scale)
         self.clip_bound = float(clip_bound)
         self.index = []
+        self.speed_eps = float(speed_eps)
+        self.future_steps = int(max(1, future_steps))
         self._h5_file = None
 
         self._build_index()
@@ -461,19 +506,25 @@ class PedestrianStepDataset(Dataset):
         # ----- target speed -----
         target_speed = np.float32(ped_group["action"]["target_speed"][t])
 
-        # ----- target direction from current controller command -----
-        target_direction_world = np.asarray(
-            ped_group["action"]["target_direction"][t],
-            dtype=np.float32
+        # ----- target direction from future realized motion -----
+        n_steps = ped_group["state"]["current_location"].shape[0]
+        future_t = min(t + self.future_steps, n_steps - 1)
+
+        future_location = np.asarray(
+            ped_group["state"]["current_location"][future_t],
+            dtype=np.float32,
+        )
+        future_timestamp = np.float32(ped_group["timestamp"][future_t])
+
+        target_direction_local, future_motion_speed = compute_future_direction_and_speed(
+            current_location=current_location,
+            future_location=future_location,
+            current_yaw_heading=float(yaw_heading),
+            current_timestamp=float(timestamp),
+            future_timestamp=float(future_timestamp),
         )
 
-        target_direction_local = rotate_world_to_local_2d(
-            target_direction_world[:2],
-            float(yaw_heading),
-        )
-        target_direction_local = normalize_direction_2d(target_direction_local)
-
-        direction_valid = bool(np.linalg.norm(target_direction_world[:2]) > 1e-6)
+        direction_valid = bool(future_motion_speed > self.speed_eps)
         yaw_sin = np.float32(math.sin(float(yaw_heading)))
         yaw_cos = np.float32(math.cos(float(yaw_heading)))
 
@@ -497,6 +548,10 @@ class PedestrianStepDataset(Dataset):
             "target_speed": torch.tensor(target_speed, dtype=torch.float32),
             "target_direction_local": torch.from_numpy(target_direction_local),
             "target_direction_mask": torch.tensor(direction_valid, dtype=torch.bool),
+
+            # debug
+            "future_timestep": torch.tensor(future_t),
+            "future_motion_speed": torch.tensor(future_motion_speed, dtype=torch.float32),
 
             # metadata
             "episode": episode_name,
