@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from ..utils.config_loader import load_config
 
 
 class FiLMGenerator(nn.Module):
@@ -56,6 +57,8 @@ class BehaviorCloningPolicy(nn.Module):
         SiLU(): ensuure smooth actions output with all gradient
         Softplus(): ensure speed output is always > 0
     '''
+    sim_config = load_config("sim_config.json")
+    MAX_SPEED = sim_config["simulation"]["pedestrian"]["speed_range"][1]
 
     def __init__(
         self,
@@ -66,6 +69,7 @@ class BehaviorCloningPolicy(nn.Module):
         dropout=0.10,
         state_feature_dim=64,
         goal_feature_dim=64,
+        max_speed=MAX_SPEED
     ):
         super().__init__()
 
@@ -111,7 +115,7 @@ class BehaviorCloningPolicy(nn.Module):
             nn.Linear(hidden_dim, 64),
             nn.SiLU(),
             nn.Linear(64, 1),
-            nn.Softplus(),
+            nn.Sigmoid(),
         )
 
         self.direction_head = nn.Sequential(
@@ -119,6 +123,8 @@ class BehaviorCloningPolicy(nn.Module):
             nn.SiLU(),
             nn.Linear(64, direction_dim),
         )
+
+        self.max_speed = float(max_speed)
 
     def forward(self, data):
         '''
@@ -156,7 +162,7 @@ class BehaviorCloningPolicy(nn.Module):
         )
         latent_feature = self.trunk(fused_feature)
 
-        pred_speed = self.speed_head(latent_feature)
+        pred_speed = self.speed_head(latent_feature) * self.max_speed
         pred_direction = self.direction_head(latent_feature)
 
         return {
