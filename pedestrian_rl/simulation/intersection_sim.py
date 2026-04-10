@@ -62,11 +62,11 @@ def main():
         y=sim_config["intersection"]["y"], 
         z=sim_config["intersection"]["z"],
     )
-
+    spector_height = sim_config["intersection"]["spector_height"]
     distance = sim_config["intersection"]["dist"]
 
     # Set spector to visulize intersection area
-    spector = Spector(world, location=intersection_position + carla.Location(z=50), dist=distance)
+    spector = Spector(world, location=intersection_position + carla.Location(z=spector_height), dist=distance)
     # spector.show_intersection_info()
     spector.set_spector()
 

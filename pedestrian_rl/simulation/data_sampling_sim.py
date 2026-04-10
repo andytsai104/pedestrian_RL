@@ -1,10 +1,11 @@
 import carla
 import os
+import time
 import cv2
 from ..utils.config_loader import load_config
 from ..utils.sim_utils import Spector, CrossroadPedestrians, AggressiveVehicles, refresh_sim, spawn_actors
-from ..data_collection.bev.bev_sample import BEVWrapper, BEVSample, BEV_test
-from ..data_collection.state_action_pair import PedestrianStateAction
+from ..data_collection.bev.bev_sample import BEVWrapper
+from ..data_collection.bev.bev_seg_sample import SemanticBEVWrapper, SemanticBEVSample
 from ..utils.data_utils import DataSampler, convert_to_dataset
 
 '''TODO: Increase dataset quality
@@ -15,7 +16,9 @@ def data_sampling_sim(output_file=True, no_rendering_mode=True, show_bev=False, 
     # ----- connect to CARLA -----
     config = load_config("sim_config.json")
     num_episode = config["dataset"]["num_episode"]
+    num_ped_per_episode = config["dataset"]["num_ped_per_episode"]
     sample_every_n_steps = config["dataset"]["sample_every_n_steps"]
+    min_samples_per_episode = config["dataset"]["min_samples_per_episode"]
     sim_config = config["simulation"]
     fixed_delta_time = sim_config["fixed_delta_seconds"]
 
@@ -41,13 +44,15 @@ def data_sampling_sim(output_file=True, no_rendering_mode=True, show_bev=False, 
     spector = Spector(world, location=intersection_position + carla.Location(z=50), dist=distance)
     aggressive_vehicles = AggressiveVehicles(client, world, location=intersection_position)
     crossroad_pedestrians = CrossroadPedestrians(world, location=intersection_position)
-    bev_wrapper = BEVWrapper(cfg=None, world=world)
+    # bev_wrapper = BEVWrapper(cfg=None, world=world)
+    bev_wrapper = SemanticBEVWrapper(cfg=None, world=world)
 
     sampler = DataSampler(
         world=world,
         bev_wrapper=bev_wrapper,
         crossroad_pedestrians=crossroad_pedestrians,
-        config=config
+        config=config,
+        bev_sample_class=SemanticBEVSample
     )
 
     # ----- refresh conditions -----
@@ -84,83 +89,131 @@ def data_sampling_sim(output_file=True, no_rendering_mode=True, show_bev=False, 
     )
     sampler.select_target_ped_ids()
 
-    while True:
-        if episode_idx == num_episode:
-            print(f"\nSampling finished: collected {episode_idx} episodes.")
-            print(f"Dataset saved to: {output_path}")
-            break
+    def respawn_same_episode(reason):
+        nonlocal ped_index
+        print(f"--- RESAMPLE SAME EPISODE: {reason} ---")
+        print("Discarding current episode buffer and respawning actors...")
 
-        for _ in range(sample_every_n_steps):
-            world.tick()
+        refresh_conditions["start time"] = world.get_snapshot().timestamp.elapsed_seconds
+        refresh_conditions["vehicle"]["stuck_tracker"] = {}
 
-        # ----- refresh episode if needed -----
-        sim_state, should_refresh = refresh_sim(
+        sampler.reset_episode_tracking()
+        ped_index = None
+
+        spawn_actors(
             world=world,
-            refresh_conditions=refresh_conditions,
-            intersection_position=intersection_position
+            spector=spector,
+            aggressive_vehicles=aggressive_vehicles,
+            crossroad_pedestrians=crossroad_pedestrians,
         )
+        sampler.select_target_ped_ids()
 
-        if should_refresh:
-            print(f"--- {sim_state} ---")
-            print("Refreshing simulation...")
+    try:
+        ped_index = None
+        while True:
+            if episode_idx == num_episode:
+                print(f"\nSampling finished: collected {episode_idx} episodes.")
+                print(f"Dataset saved to: {output_path}")
+                break
 
-            if output_file:
-                convert_to_dataset(
-                    episode_idx=episode_idx,
-                    episode_data=sampler.get_episode_buffer(),
-                    output_path=output_path
+            for _ in range(sample_every_n_steps):
+                world.tick()
+
+            # ----- refresh episode if needed -----
+            sim_state, should_refresh = refresh_sim(
+                world=world,
+                refresh_conditions=refresh_conditions,
+                intersection_position=intersection_position
+            )
+
+            if should_refresh:
+                print(f"--- {sim_state} ---")
+                print("Refreshing simulation...")
+
+                if output_file:
+                    episode_data = sampler.get_episode_buffer()
+                    sample_counts = len(episode_data)
+                    if sample_counts < min_samples_per_episode:
+                        respawn_same_episode(reason=f" only {sample_counts} samples (< {min_samples_per_episode})")
+                        continue
+
+                    convert_to_dataset(
+                        episode_idx=episode_idx,
+                        episode_data=episode_data,
+                        output_path=output_path
+                    )
+
+                episode_idx += 1
+
+                refresh_conditions["start time"] = world.get_snapshot().timestamp.elapsed_seconds
+                refresh_conditions["vehicle"]["stuck_tracker"] = {}
+
+                sampler.reset_episode_tracking()
+
+                spawn_actors(
+                    world=world,
+                    spector=spector,
+                    aggressive_vehicles=aggressive_vehicles,
+                    crossroad_pedestrians=crossroad_pedestrians,
                 )
 
-            episode_idx += 1
+                sampler.select_target_ped_ids()
+                continue
 
-            refresh_conditions["start time"] = world.get_snapshot().timestamp.elapsed_seconds
-            refresh_conditions["vehicle"]["stuck_tracker"] = {}
+            # ----- sample current frame -----
+            snapshot = world.get_snapshot()
+            timestamp = snapshot.timestamp
+            frame_id = snapshot.timestamp.frame
 
-            sampler.reset_episode_tracking()
+            sample_peds = sampler.get_sample_pedestrians()
+            num_sample_peds = len(sample_peds)
 
-            spawn_actors(
-                world=world,
-                spector=spector,
-                aggressive_vehicles=aggressive_vehicles,
-                crossroad_pedestrians=crossroad_pedestrians,
-            )
+            # Check if the peds in sample_peds meet the required number
+            if num_sample_peds < num_ped_per_episode:
+                respawn_same_episode(reason=f"target pedestrian missing ({num_sample_peds}/{num_ped_per_episode} alive)")
+                continue
+            
+            # Sample only one pedestrian per tick
+            if (ped_index is None) or (ped_index >= num_sample_peds):
+                ped_index = 0
 
-            sampler.select_target_ped_ids()
-
-        # ----- sample current frame -----
-        snapshot = world.get_snapshot()
-        timestamp = snapshot.timestamp
-        frame_id = snapshot.timestamp.frame
-
-        sample_peds = sampler.get_sample_pedestrians()
-
-        for ped in sample_peds:
-            ped_info, bev_sample = sampler.sample_single_pedestrian(
-                ped=ped,
-                frame_id=frame_id,
-                timestamp=timestamp
-            )
+            # Try to sample the bev if the pedestrian is alive; or resample the current episode
+            try:
+                ped_info, bev_sample = sampler.sample_single_pedestrian(
+                    ped=sample_peds[ped_index],
+                    frame_id=frame_id,
+                    timestamp=timestamp
+                )
+            except RuntimeError as exc:
+                respawn_same_episode(reason=exc)
+                continue
 
             sampler.append_sample(ped_info)
+            ped_index +=1
 
-        # Visualize the last pedestrian
-        if (print_out_data) and (frame_id%50 ==0):
-            print(
-                f"\n[Ped Sample] "
-                f"ped_id={ped_info.ped_id} | frame={frame_id}\n"
-                f"  location         : {ped_info.state['current_location']}\n"
-                f"  velocity         : {ped_info.state['velocity']}\n"
-                f"  speed            : {ped_info.state['speed']}\n"
-                f"  motion_heading   : {ped_info.state['motion_heading']}\n"
-                f"  target_speed     : {ped_info.action['target_speed']}\n"
-                f"  target_direction : {ped_info.action['target_direction']}\n"
-            )
+            # Visualize the last pedestrian
+            if (print_out_data) and (ped_index==1):
+                print(
+                    f"\n[Ped Sample] "
+                    f"ped_id={ped_info.ped_id} | frame={frame_id}\n"
+                    f"  location         : {ped_info.state['current_location']}\n"
+                    f"  velocity         : {ped_info.state['velocity']}\n"
+                    # f"  speed            : {ped_info.state['speed']}\n"
+                    # f"  motion_heading   : {ped_info.state['motion_heading']}\n"
+                    f"  yaw_heading   : {ped_info.state['yaw_heading']}\n"
+                    # f"  target_speed     : {ped_info.action['target_speed']}\n"
+                    f"  target_direction : {ped_info.action['target_direction']}\n"
+                )
 
-        if (show_bev):
-            image = bev_sample.visualize_bev()
-            cv2.imshow("BEV Debug Tool", image)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                return
+            if (show_bev) and (ped_index==1):
+                image = bev_sample.visualize_bev()
+                cv2.imshow("BEV Debug Tool", image)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    return
+    finally:
+        bev_wrapper.close()
+        cv2.destroyAllWindows()
+        
 
 def visualize_sampled_data():
     data_sampling_sim(
@@ -179,9 +232,9 @@ if __name__ == "__main__":
         # Output dataset
         data_sampling_sim(
             output_file=True,
-            no_rendering_mode=True,
-            show_bev=False,
-            print_out_data=True   
+            no_rendering_mode=False,
+            show_bev=True,
+            print_out_data=False   
         )
     except KeyboardInterrupt:
         print("Sampling stopped by user.")

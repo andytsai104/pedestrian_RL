@@ -380,7 +380,7 @@ class AggressiveVehicles:
         location: Center location of the target intersection.
         veh_num: Number of vehicles to spawn.
         dist_to_intersection: Maximum distance from the intersection for valid vehicle spawn points.
-        speed_diff: Percentage speed difference applied through the Traffic Manager.
+        speed_diff: Percentage speed difference applied through the Traffic Manager. (how much % slower than speed limit)
         dist_lead: Desired distance to the leading vehicle.
         wp_step: Step size used when generating waypoints for candidate vehicle spawn points.
 
@@ -396,7 +396,8 @@ class AggressiveVehicles:
                  speed_diff=config["speed_diff"],
                  dist_lead=config["dist_lead"], 
                  wp_step=config["wp_step"],
-                 signal_ignoring_rate=config["signal_ignoring_rate"]
+                 signal_ignoring_rate=config["signal_ignoring_rate"],
+                 ped_ignoring_rate=config["ped_ignoring_rate"]
         ):
         
         self.client = client
@@ -409,6 +410,7 @@ class AggressiveVehicles:
         self.dist_lead = dist_lead
         self.wp_step = wp_step
         self.signal_ignoring_rate = signal_ignoring_rate
+        self.ped_ignoring_rate = ped_ignoring_rate
 
     def aggressive_vehicles_spawn(self):
         # Traffic manager
@@ -449,9 +451,9 @@ class AggressiveVehicles:
         for v in vehicles:
             tm.vehicle_percentage_speed_difference(v, self.speed_diff)
             tm.distance_to_leading_vehicle(v, self.dist_lead)
-            tm.ignore_lights_percentage(v, self.signal_ignoring_rate)             # ignore traffic lights
-            tm.ignore_signs_percentage(v, self.signal_ignoring_rate)              # ignore traffic signs
-
+            tm.ignore_lights_percentage(v, self.signal_ignoring_rate)               # ignore traffic lights
+            tm.ignore_signs_percentage(v, self.signal_ignoring_rate)                # ignore traffic signs
+            tm.ignore_walkers_percentage(v, self.ped_ignoring_rate)                 # ignore pedestrians
 
 def cleanup_simulation(world):
     '''Safely destroys pedestrians and vehicles.'''

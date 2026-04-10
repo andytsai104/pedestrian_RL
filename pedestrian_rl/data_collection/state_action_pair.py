@@ -57,7 +57,7 @@ class PedestrianStateAction:
             "current_location": None,
             "velocity": None,               # (vx, vy): vx and vy can get heading and speed
             "speed": None,
-            "motion_heading": None,         # angle in radians
+            # "motion_heading": None,         # angle in radians
             "yaw_heading": None,            # angle in radians
             "goal_location": None,          # numpy.array (x, y, z) from CrossroadPedestrians
         }
@@ -87,8 +87,8 @@ class PedestrianStateAction:
     def set_speed(self, speed: float):
         self.state["speed"] = speed
 
-    def set_heading(self, motion_heading: float):
-        self.state["motion_heading"] = motion_heading
+    # def set_heading(self, motion_heading: float):
+    #     self.state["motion_heading"] = motion_heading
 
     def set_yaw_heading(self, yaw_heading: float):
         self.state["yaw_heading"] = yaw_heading
@@ -113,7 +113,7 @@ class PedestrianStateAction:
         current_location: np.ndarray,
         velocity: np.ndarray,
         speed: float,
-        motion_heading: float,
+        # motion_heading: float,
         yaw_heading: float,
         goal_location: np.ndarray,
     ):
@@ -121,7 +121,7 @@ class PedestrianStateAction:
         self.set_location(current_location)
         self.set_velocity(velocity)
         self.set_speed(speed)
-        self.set_heading(motion_heading)
+        # self.set_heading(motion_heading)
         self.set_yaw_heading(yaw_heading)
         self.set_goal_location(goal_location)
 

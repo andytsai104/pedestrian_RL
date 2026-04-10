@@ -210,6 +210,12 @@ class BEVWrapper:
             location.z = 1
             self.world.debug.draw_point(location, size=0.1, color=carla.Color(0, 255, 0), life_time=2.0)
     
+    def close(self):
+        '''
+        A pseudo function to match segmentation BEV and make data_sampling_sim work
+        '''
+        pass
+    
 class BEVSample:
     '''
     Class for controlling the spectator camera and visualizing important map information in CARLA.

@@ -2,27 +2,29 @@
   "simulation": {
     "town": "Town10HD",
     "fixed_delta_seconds": 0.05,
-    "max_episode_steps": 500,
+    "max_episode_steps": 600,
     "warmup_ticks": 10,
 
     "intersection": {
-      "x": -43.5,
+      "x": -75,
       "y": 21.0,
       "z": 0.0, 
-      "dist": 25.0
+      "dist": 25.0,
+      "spector_height": 45
     },
 
     "vehicle": {
-      "veh_num": 40,
-      "dist_to_intersection": 80,
-      "speed_diff": 35,
-      "dist_lead": 4,
-      "wp_step": 5,
-      "signal_ignoring_rate": 100    
+      "veh_num": 30,
+      "dist_to_intersection": 70,
+      "speed_diff": 70,
+      "dist_lead": 5,
+      "wp_step": 10,
+      "signal_ignoring_rate": 100,
+      "ped_ignoring_rate": 0 
     },
 
     "pedestrian":{
-      "ped_num": 50,
+      "ped_num": 60,
       "speed_range": [0.9, 1.2]
     },
 
@@ -44,17 +46,20 @@
   "bev": {
     "size": [160, 160],
     "range": 20,
-    "hero_ped_size": 4,
-    "other_ped_size": 3,
-    "step_size": 0.4
+    "hero_ped_size": 5,
+    "other_ped_size": 4,
+    "step_size": 0.4,
+    "camera_height": 50,
+    "fov": 20
   },
 
   "dataset": {
     "save_path": "datasets/pedestrian",
-    "file_name": "pedestrian_dataset.h5",
-    "num_episode": 20,
-    "num_ped_per_episode": 12,
-    "sample_every_n_steps": 4, 
+    "file_name": "segmentation_dataset.h5",
+    "num_episode": 30,
+    "num_ped_per_episode": 10,
+    "sample_every_n_steps": 0,
+    "min_samples_per_episode": 200, 
     "format": "hdf5"
   }
 }
