@@ -228,6 +228,11 @@ class SemanticBEVWrapper:
     def tag_map_to_layers(self, tag_map: np.ndarray):
         tags = self.TAGS
 
+        sidewalk_ids = {
+            tags["sidewalk"],
+            tags["road_line"]
+        }
+
         road_like_ids = {
             tags["road"],
             tags["road_line"],
@@ -271,7 +276,8 @@ class SemanticBEVWrapper:
 
         layers = {
             "road": self._mask_from_ids(tag_map, road_like_ids),
-            "sidewalk": self._mask_from_ids(tag_map, tags["sidewalk"]),
+            # "sidewalk": self._mask_from_ids(tag_map, tags["sidewalk"]),
+            "sidewalk": self._mask_from_ids(tag_map, sidewalk_ids),
             "vehicle": self._mask_from_ids(tag_map, vehicle_ids),
             "pedestrian": self._mask_from_ids(tag_map, tags["pedestrian"]),
             "obstacles": self._mask_from_ids(tag_map, blocked_ids),
@@ -293,6 +299,7 @@ class SemanticBEVWrapper:
         return layers
 
     def get_raw_tag_map(self):
+        # self.world.tick()
         image = self._get_latest_image(timeout=20.0)
         tag_map = self.image_to_tag_map(image)
         self.last_tag_map = tag_map
