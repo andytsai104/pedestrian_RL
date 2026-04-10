@@ -14,6 +14,7 @@ from ..utils.sim_utils import (
     cleanup_simulation,
 )
 from ..data_collection.bev.bev_sample import BEVWrapper, BEVSample
+from ..data_collection.bev.bev_seg_sample import SemanticBEVWrapper, SemanticBEVSample
 from .data_utils import rotate_world_to_local_2d, rotate_local_to_world_2d
 from ..utils.td3_utils import PedestrianRLEnv, build_td3_agent
 from ..models.cnn_encoder import CNNEncoder
@@ -39,6 +40,8 @@ class PolicyRunner:
         no_rendering_mode=False,
         device="cuda",
         num_model_peds=5,
+        bev_wrapper=SemanticBEVWrapper,
+        bev_sampler=SemanticBEVSample
     ):
         # --- load config ---
         self.sim_config = load_config(sim_config_name)
@@ -91,7 +94,8 @@ class PolicyRunner:
             self.world,
             location=self.intersection_position,
         )
-        self.bev_wrapper = BEVWrapper(cfg=None, world=self.world)
+        self.bev_wrapper = bev_wrapper(cfg=None, world=self.world)
+        self.bev_sampler = bev_sampler
 
         # --- define prediction model ---
         self.model_class = model_class
@@ -253,7 +257,7 @@ class PolicyRunner:
 
     def _build_observation(self, ped: carla.Actor, frame_id: int):
         """Build up observation for one target pedestrian."""
-        bev_sample = BEVSample(actor=ped, bev_wrapper=self.bev_wrapper)
+        bev_sample = self.bev_sampler(actor=ped, bev_wrapper=self.bev_wrapper)
         bev_data = bev_sample.get_bev()
 
         current_location, velocity, speed = self._compute_velocity_speed(ped, frame_id)
@@ -425,6 +429,8 @@ class PolicyRunner:
     def run(self, render_bev=True):
         self.reset_episode()
         while True:
+            for _ in range(2):
+                self.world.tick()
             self.step_once(render_bev=render_bev)
 
 
